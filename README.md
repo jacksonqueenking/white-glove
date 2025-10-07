@@ -5,10 +5,12 @@ Minimal Next.js prototype for the White Glove AI event planning platform.
 ## Getting Started
 
 - Install dependencies: `npm install`
-- Start the Next.js dev server: `npm run dev`
+- Start the Next.js dev server (App Router): `npm run dev`
 - Visit `http://localhost:3000` to see the welcome screen.
 
-The development server supports hot reloading, so changes inside the `pages` directory appear instantly in the browser.
+The development server supports hot reloading, so edits inside the `app` directory appear instantly in the browser.
+
+This project uses the Next.js App Router (`app/` directory) with a single `app/page.js` entry point and global styles in `app/globals.css`.
 
 ## Developing with Vercel CLI
 
