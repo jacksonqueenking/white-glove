@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-import { ChatHistoryList } from "@/components/chat/ChatHistoryList";
-import { ChatWindow } from "@/components/chat/ChatWindow";
+import { ChatHistoryList } from "../../components/chat/ChatHistoryList";
+import { ChatWindow } from "../../components/chat/ChatWindow";
 
 // Client persona layout with split-screen chat and detail panel placeholders.
 export default function ClientLayout({ children }: { children: ReactNode }) {
