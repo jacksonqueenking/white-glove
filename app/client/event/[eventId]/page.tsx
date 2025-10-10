@@ -1,14 +1,16 @@
 interface ClientEventPageProps {
-  params: { eventId: string };
+  params: Promise<{ eventId: string }>;
 }
 
 // Split-screen event planning UI tied to the AI assistant conversation.
-export default function ClientEventPage({ params }: ClientEventPageProps) {
+export default async function ClientEventPage({ params }: ClientEventPageProps) {
+  const { eventId } = await params;
+
   return (
     <section className="space-y-6">
       <header>
         <h1 className="text-2xl font-semibold">Event Overview</h1>
-        <p className="text-sm text-slate-600">Event ID: {params.eventId}</p>
+        <p className="text-sm text-slate-600">Event ID: {eventId}</p>
       </header>
       <div className="grid gap-6 lg:grid-cols-2">
         <article className="rounded-lg border border-slate-200 bg-white p-4">

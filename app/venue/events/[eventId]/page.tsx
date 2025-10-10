@@ -1,14 +1,16 @@
 interface VenueEventPageProps {
-  params: { eventId: string };
+  params: Promise<{ eventId: string }>;
 }
 
 // Venue-facing event hub consolidating tasks, vendors, and messaging.
-export default function VenueEventPage({ params }: VenueEventPageProps) {
+export default async function VenueEventPage({ params }: VenueEventPageProps) {
+  const { eventId } = await params;
+
   return (
     <section className="space-y-6">
       <header>
         <h1 className="text-2xl font-semibold">Event Detail</h1>
-        <p className="text-sm text-slate-600">Coordinating event {params.eventId}</p>
+        <p className="text-sm text-slate-600">Coordinating event {eventId}</p>
       </header>
       <div className="grid gap-4 md:grid-cols-3">
         <article className="rounded-lg border border-slate-200 bg-white p-4 md:col-span-2">
