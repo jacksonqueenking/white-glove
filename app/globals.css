@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 @layer base {
   :root {
@@ -8,7 +6,7 @@
   }
 
   body {
-    @apply min-h-screen bg-[#f8f4ec] font-sans text-[#3f3a33] antialiased;
+    @apply min-h-screen bg-[#f8f4ec] text-[#3f3a33] antialiased;
   }
 }
 
