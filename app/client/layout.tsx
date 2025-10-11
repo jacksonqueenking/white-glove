@@ -9,7 +9,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
     <div className="client-shell flex min-h-screen bg-[#f8f4ec]">
       <ChatHistoryList />
       <section className="flex flex-1">
-        <aside className="flex w-[420px] flex-col border-r border-[#e7dfd4] bg-[#f8f4ec]">
+        <aside className="flex w-[420px] min-h-screen flex-col border-r border-[#e7dfd4] bg-[#f8f4ec]">
           <div className="flex flex-1 min-h-0">
             <ChatWindow />
           </div>

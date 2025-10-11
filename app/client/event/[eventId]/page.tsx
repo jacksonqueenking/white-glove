@@ -1,4 +1,5 @@
 import { EventDetailPanel } from "../../../../components/client/EventDetailPanel";
+import type { CalendarItem, EventTask } from "../../../../components/client/EventDetailPanel";
 
 interface ClientEventPageProps {
   params: Promise<{ eventId: string }>;
@@ -58,99 +59,62 @@ const ELEMENTS = [
   },
 ];
 
-const NEXT_ACTIONS = [
-  "Approve catering menu adjustments",
-  "Upload photography shot list by Oct 10",
-  "Review floral proposals from Petals & Co.",
+const TASKS: EventTask[] = [
+  {
+    id: "task-1",
+    title: "Approve catering menu adjustments",
+    due: "Due Oct 8",
+    status: "waiting",
+  },
+  {
+    id: "task-2",
+    title: "Upload photography shot list",
+    due: "Due Oct 10",
+    status: "upcoming",
+  },
+  {
+    id: "task-3",
+    title: "Review floral proposals from Petals & Co.",
+    due: "Review by Oct 12",
+    status: "upcoming",
+  },
+];
+
+const CALENDAR_ITEMS: CalendarItem[] = [
+  {
+    id: "cal-1",
+    date: "Oct 8",
+    time: "2:00 PM",
+    label: "Catering menu review",
+    description: "Confirm vegetarian adjustments with Bella's Catering before sending approvals.",
+  },
+  {
+    id: "cal-2",
+    date: "Oct 10",
+    time: "All day",
+    label: "Photography shot list",
+    description: "Share final shot list with Lens & Light Photography for weekend prep.",
+  },
+  {
+    id: "cal-3",
+    date: "Oct 12",
+    label: "Floral palette feedback",
+    description: "Provide feedback on Petals & Co. palette update to confirm installations.",
+  },
 ];
 
 // Split-screen event planning UI tied to the AI assistant conversation.
 export default async function ClientEventPage({ params }: ClientEventPageProps) {
   const { eventId } = await params;
 
-  const statusSummary = ELEMENTS.reduce(
-    (acc, element) => {
-      acc[element.status] += 1;
-      return acc;
-    },
-    { todo: 0, in_progress: 0, completed: 0, attention: 0 },
-  );
-
   return (
-    <section className="mx-auto max-w-6xl space-y-10">
-      <header className="glass-card px-8 py-7">
-        <div className="flex flex-wrap items-start justify-between gap-6">
-          <div className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b09c86]">Event</p>
-            <h1 className="text-3xl font-semibold text-[#3f3a33]">{EVENT_DATA.name}</h1>
-            <p className="text-sm text-[#6f6453]">
-              Coordinated by {EVENT_DATA.planner} • Guest count: {EVENT_DATA.guestCount}
-            </p>
-          </div>
-          <div className="glass-card flex min-w-[220px] flex-col gap-2 rounded-2xl border-[#e7dfd4] bg-[#fdfaf5] px-5 py-4 text-sm text-[#6f6453] shadow-none">
-            <p className="flex items-center gap-2 font-medium text-[#4d463b]">
-              <span aria-hidden>📍</span>
-              {EVENT_DATA.venue}
-            </p>
-            <p className="flex items-center gap-2">
-              <span aria-hidden>📅</span>
-              {EVENT_DATA.date}
-            </p>
-            <p className="flex items-center gap-2">
-              <span aria-hidden>⏰</span>
-              {EVENT_DATA.time}
-            </p>
-          </div>
-        </div>
-        <p className="mt-5 max-w-2xl text-sm leading-relaxed text-[#6f6453]">{EVENT_DATA.summary}</p>
-        <p className="mt-3 text-xs uppercase tracking-[0.2em] text-[#b09c86]">Event ID • {eventId}</p>
-      </header>
-
-      <div className="grid gap-8 xl:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="space-y-4">
-          <section className="glass-card px-5 py-6 text-sm text-[#6f6453]">
-            <h2 className="text-sm font-semibold text-[#4d463b]">Status snapshot</h2>
-            <ul className="mt-4 space-y-3 text-xs">
-              <li className="flex items-center justify-between">
-                <span className="text-[#a18a72]">Completed</span>
-                <span className="font-semibold text-[#3f3a33]">{statusSummary.completed}</span>
-              </li>
-              <li className="flex items-center justify-between">
-                <span className="text-[#a18a72]">In progress</span>
-                <span className="font-semibold text-[#3f3a33]">{statusSummary.in_progress}</span>
-              </li>
-              <li className="flex items-center justify-between">
-                <span className="text-[#a18a72]">Needs attention</span>
-                <span className="font-semibold text-[#3f3a33]">{statusSummary.attention}</span>
-              </li>
-              <li className="flex items-center justify-between">
-                <span className="text-[#a18a72]">To do</span>
-                <span className="font-semibold text-[#3f3a33]">{statusSummary.todo}</span>
-              </li>
-            </ul>
-          </section>
-
-          <section className="glass-card px-5 py-6">
-            <h2 className="text-sm font-semibold text-[#4d463b]">Quick actions</h2>
-            <div className="mt-4 grid gap-2">
-              <button
-                type="button"
-                className="inline-flex items-center justify-center rounded-full bg-[#f0bda4] px-4 py-2 text-sm font-semibold text-[#624230] transition hover:bg-[#eba98a]"
-              >
-                View contract
-              </button>
-              <button
-                type="button"
-                className="inline-flex items-center justify-center rounded-full border border-[#e7dfd4] px-4 py-2 text-sm font-medium text-[#6f6453] transition hover:bg-[#f1e9df]"
-              >
-                Manage guests
-              </button>
-            </div>
-          </section>
-        </aside>
-
-        <EventDetailPanel elements={ELEMENTS} nextActions={NEXT_ACTIONS} />
-      </div>
+    <section className="mx-auto max-w-6xl">
+      <EventDetailPanel
+        event={{ ...EVENT_DATA, id: eventId }}
+        elements={ELEMENTS}
+        tasks={TASKS}
+        calendar={CALENDAR_ITEMS}
+      />
     </section>
   );
 }
