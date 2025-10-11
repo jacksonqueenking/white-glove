@@ -17,12 +17,14 @@ export async function sendMagicLink(
 ): Promise<AuthResponse<{ email: string }>> {
   const supabase = await createClient();
 
-  const redirectUrl = redirectTo || `${BASE_URL}/${userType}/dashboard`;
+  // Use the auth callback route to handle the code exchange
+  const destination = redirectTo || `/${userType}/dashboard`;
+  const callbackUrl = `${BASE_URL}/api/auth/callback?next=${encodeURIComponent(destination)}`;
 
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: redirectUrl,
+      emailRedirectTo: callbackUrl,
       data: {
         user_type: userType,
       },
@@ -67,7 +69,7 @@ export async function signUpWithPassword(
         onboarding_completed: false,
         ...additionalData,
       },
-      emailRedirectTo: `${BASE_URL}/${userType}/verify`,
+      emailRedirectTo: `${BASE_URL}/api/auth/callback?next=${encodeURIComponent(`/${userType}/dashboard`)}`,
     },
   });
 
@@ -81,15 +83,37 @@ export async function signUpWithPassword(
     };
   }
 
-  if (!data.session || !data.user) {
+  // If email confirmation is required, session will be null but user is created
+  if (!data.user) {
     return {
       data: null,
       error: {
-        message: 'Failed to create session',
+        message: 'Failed to create user account',
       },
     };
   }
 
+  // Email confirmation required - no session yet
+  if (!data.session) {
+    return {
+      data: {
+        access_token: '',
+        refresh_token: '',
+        expires_at: 0,
+        expires_in: 0,
+        user: {
+          id: data.user.id,
+          email: data.user.email!,
+          user_metadata: data.user.user_metadata as any,
+          created_at: data.user.created_at!,
+          last_sign_in_at: data.user.last_sign_in_at,
+        },
+      },
+      error: null,
+    };
+  }
+
+  // Session created immediately (email confirmation disabled)
   return {
     data: {
       access_token: data.session.access_token,
@@ -192,7 +216,7 @@ export async function sendPasswordResetEmail(
   const supabase = await createClient();
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${BASE_URL}/reset-password`,
+    redirectTo: `${BASE_URL}/api/auth/callback?next=${encodeURIComponent('/reset-password')}`,
   });
 
   if (error) {

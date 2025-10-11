@@ -10,8 +10,11 @@ export interface EventElement {
   status: ElementStatus;
   price: string;
   vendor: string;
+  vendorId?: string;
   description: string;
   notes: string;
+  internalNotes?: string;
+  files?: Array<{ id: string; name: string; url: string }>;
   actions: string[];
 }
 
@@ -33,11 +36,14 @@ export interface CalendarItem {
 interface EventSummary {
   id: string;
   name: string;
-  venue: string;
+  venue?: string;
+  clientName?: string;
   date: string;
   time: string;
   guestCount: number;
-  planner: string;
+  planner?: string;
+  budget?: string;
+  spaces?: string[];
   summary: string;
 }
 
@@ -46,6 +52,9 @@ interface EventDetailPanelProps {
   elements: EventElement[];
   tasks: EventTask[];
   calendar: CalendarItem[];
+  mode?: "client" | "venue";
+  onElementUpdate?: (elementId: string, updates: Partial<EventElement>) => void;
+  onFileUpload?: (elementId: string, file: File) => void;
 }
 
 const STATUS_TOKENS: Record<ElementStatus, { label: string; badge: string }> = {
@@ -70,9 +79,18 @@ const VIEW_TABS: Array<{ id: Exclude<PanelView, "element-detail">; label: string
 ];
 
 // Single large planning panel with segmented views and element deep-dive.
-export function EventDetailPanel({ event, elements, tasks, calendar }: EventDetailPanelProps) {
+export function EventDetailPanel({
+  event,
+  elements,
+  tasks,
+  calendar,
+  mode = "client",
+  onElementUpdate,
+  onFileUpload,
+}: EventDetailPanelProps) {
   const [view, setView] = useState<PanelView>("elements");
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   const activeElement = useMemo(
     () => elements.find((element) => element.id === selectedElement) ?? null,
@@ -96,11 +114,18 @@ export function EventDetailPanel({ event, elements, tasks, calendar }: EventDeta
   const handleSelectElement = (elementId: string) => {
     setSelectedElement(elementId);
     setView("element-detail");
+    setIsEditing(false);
   };
 
   const handleBackToElements = () => {
     setView("elements");
     setSelectedElement(null);
+    setIsEditing(false);
+  };
+
+  const handleSaveElement = () => {
+    // Save logic would go here - callback to parent
+    setIsEditing(false);
   };
 
   return (
@@ -111,13 +136,16 @@ export function EventDetailPanel({ event, elements, tasks, calendar }: EventDeta
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b09c86]">Event</p>
             <h1 className="text-3xl font-semibold text-[#3f3a33]">{event.name}</h1>
             <p className="text-sm text-[#6f6453]">
-              Coordinated by {event.planner} • Guest count: {event.guestCount}
+              {mode === "client" && event.planner ? `Coordinated by ${event.planner} • ` : ""}
+              {mode === "venue" && event.clientName ? `Client: ${event.clientName} • ` : ""}
+              Guest count: {event.guestCount}
+              {mode === "venue" && event.budget ? ` • Budget: ${event.budget}` : ""}
             </p>
           </div>
           <div className="rounded-3xl border border-[#eadfce] bg-[#fdf5ec] px-6 py-4 text-sm text-[#6f6453]">
             <p className="flex items-center gap-2 font-medium text-[#4d463b]">
               <span aria-hidden>📍</span>
-              {event.venue}
+              {mode === "client" ? event.venue : event.spaces?.join(", ")}
             </p>
             <p className="mt-2 flex items-center gap-2">
               <span aria-hidden>📅</span>
@@ -237,27 +265,153 @@ export function EventDetailPanel({ event, elements, tasks, calendar }: EventDeta
                 Focused element
               </p>
               <h2 className="mt-3 text-2xl font-semibold text-[#3f3a33]">{activeElement.name}</h2>
-              <p className="mt-2">{activeElement.description}</p>
+              {!isEditing && <p className="mt-2">{activeElement.description}</p>}
             </div>
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
-              <div className="rounded-3xl border border-[#f0bda4] bg-[#fff2e8] px-6 py-5">
-                <p className="font-semibold text-[#4d463b]">Current estimate</p>
-                <p className="mt-2 text-3xl font-bold text-[#3f3a33]">{activeElement.price}</p>
-                <p className="mt-2 text-xs text-[#a18a72]">Provided by {activeElement.vendor}</p>
-              </div>
-              <p className="rounded-3xl bg-[#fff2e8] px-6 py-5 text-xs text-[#b16455]">Notes: {activeElement.notes}</p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {activeElement.actions.map((action) => (
+
+            {mode === "venue" && isEditing ? (
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-xs font-medium text-[#6f6453] mb-2">Status</label>
+                  <select className="w-full rounded-2xl border border-[#e7dfd4] bg-white px-4 py-2 text-sm">
+                    <option value="todo">To do</option>
+                    <option value="in_progress">In progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="attention">Needs attention</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#6f6453] mb-2">Price</label>
+                  <input
+                    type="text"
+                    defaultValue={activeElement.price}
+                    className="w-full rounded-2xl border border-[#e7dfd4] bg-white px-4 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#6f6453] mb-2">Description</label>
+                  <textarea
+                    defaultValue={activeElement.description}
+                    rows={3}
+                    className="w-full rounded-2xl border border-[#e7dfd4] bg-white px-4 py-2 text-sm resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#6f6453] mb-2">Internal Notes</label>
+                  <textarea
+                    defaultValue={activeElement.internalNotes}
+                    rows={2}
+                    className="w-full rounded-2xl border border-[#e7dfd4] bg-white px-4 py-2 text-sm resize-none"
+                    placeholder="Notes visible only to venue staff"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#6f6453] mb-2">Client Notes</label>
+                  <textarea
+                    defaultValue={activeElement.notes}
+                    rows={2}
+                    className="w-full rounded-2xl border border-[#e7dfd4] bg-white px-4 py-2 text-sm resize-none"
+                    placeholder="Notes visible to client"
+                  />
+                </div>
+                {activeElement.files && activeElement.files.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-medium text-[#6f6453] mb-2">Files</label>
+                    <div className="space-y-2">
+                      {activeElement.files.map((file) => (
+                        <div key={file.id} className="flex items-center gap-2 rounded-2xl border border-[#e7dfd4] bg-white px-4 py-2">
+                          <span className="text-xs">📄</span>
+                          <span className="flex-1 text-xs">{file.name}</span>
+                          <button type="button" className="text-xs text-[#b16455] hover:underline">
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <button
-                  key={action}
                   type="button"
-                  className="inline-flex items-center justify-center rounded-full border border-[#e7dfd4] px-5 py-2 text-sm font-medium text-[#6f6453] transition hover:bg-[#f1e9df]"
+                  className="inline-flex items-center gap-2 rounded-full border border-[#e7dfd4] px-4 py-2 text-xs font-medium text-[#6f6453] transition hover:bg-[#f1e9df]"
                 >
-                  {action}
+                  + Upload File
                 </button>
-              ))}
-            </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSaveElement}
+                    className="inline-flex items-center justify-center rounded-full bg-[#f0bda4] px-5 py-2 text-sm font-semibold text-[#624230] transition hover:bg-[#eba98a]"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="inline-flex items-center justify-center rounded-full border border-[#e7dfd4] px-5 py-2 text-sm font-medium text-[#6f6453] transition hover:bg-[#f1e9df]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
+                  <div className="rounded-3xl border border-[#f0bda4] bg-[#fff2e8] px-6 py-5">
+                    <p className="font-semibold text-[#4d463b]">Current estimate</p>
+                    <p className="mt-2 text-3xl font-bold text-[#3f3a33]">{activeElement.price}</p>
+                    <p className="mt-2 text-xs text-[#a18a72]">Provided by {activeElement.vendor}</p>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="rounded-3xl bg-[#fff2e8] px-6 py-5 text-xs">
+                      <p className="font-semibold text-[#4d463b]">Client Notes</p>
+                      <p className="mt-2 text-[#6f6453]">{activeElement.notes || "None"}</p>
+                    </div>
+                    {mode === "venue" && activeElement.internalNotes && (
+                      <div className="rounded-3xl bg-[#fdf8f1] px-6 py-5 text-xs">
+                        <p className="font-semibold text-[#4d463b]">Internal Notes</p>
+                        <p className="mt-2 text-[#6f6453]">{activeElement.internalNotes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {mode === "venue" && activeElement.files && activeElement.files.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-[#4d463b] mb-3">Files</p>
+                    <div className="space-y-2">
+                      {activeElement.files.map((file) => (
+                        <a
+                          key={file.id}
+                          href={file.url}
+                          className="flex items-center gap-2 rounded-2xl border border-[#e7dfd4] bg-white px-4 py-2 text-xs hover:bg-[#f1e9df] transition"
+                        >
+                          <span>📄</span>
+                          <span className="flex-1">{file.name}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-3">
+                  {mode === "venue" && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(true)}
+                      className="inline-flex items-center justify-center rounded-full bg-[#f0bda4] px-5 py-2 text-sm font-semibold text-[#624230] transition hover:bg-[#eba98a]"
+                    >
+                      Edit Element
+                    </button>
+                  )}
+                  {activeElement.actions.map((action) => (
+                    <button
+                      key={action}
+                      type="button"
+                      className="inline-flex items-center justify-center rounded-full border border-[#e7dfd4] px-5 py-2 text-sm font-medium text-[#6f6453] transition hover:bg-[#f1e9df]"
+                    >
+                      {action}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </article>
         ) : null}
 

@@ -68,8 +68,10 @@ function LoginForm() {
       }
 
       // Redirect to appropriate dashboard
-      const destination = redirectTo || `/${data.user.user_metadata.user_type}/dashboard`;
+      const userType = data.user?.user_metadata?.user_type || 'client';
+      const destination = redirectTo || `/${userType}/dashboard`;
       router.push(destination);
+      router.refresh(); // Force refresh to pick up new session
     } catch (err: any) {
       setError(err.message);
     } finally {

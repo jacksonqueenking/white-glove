@@ -6,6 +6,16 @@ This document summarizes the authentication and onboarding flows that have been 
 
 ### 1. Core Authentication Infrastructure
 
+#### Redis & Rate Limiting
+- **[lib/redis/client.ts](lib/redis/client.ts)**: Upstash Redis client for serverless environments
+- **[lib/redis/rate-limit.ts](lib/redis/rate-limit.ts)**: Rate limiting utilities with configurable limits
+  - Auth attempts: 5 per 15 minutes
+  - Magic link: 10 per hour
+  - Password reset: 3 per hour
+  - Signup: 3 per 24 hours
+- Graceful degradation when Redis not configured
+- Rate limit headers in all responses (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
+
 #### Supabase Client Setup
 - **[lib/supabase/client.ts](lib/supabase/client.ts)**: Client-side Supabase client for browser operations
 - **[lib/supabase/server.ts](lib/supabase/server.ts)**: Server-side Supabase client with cookie handling

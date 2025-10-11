@@ -7,6 +7,13 @@ import {
   passwordResetRequestSchema,
   passwordResetSchema,
 } from '@/lib/auth/validation';
+import {
+  applyRateLimit,
+  passwordResetRateLimit,
+  getClientIdentifier,
+  createRateLimitHeaders,
+  isRateLimited,
+} from '@/lib/redis/rate-limit';
 
 /**
  * POST /api/auth/reset-password?action=request
@@ -19,6 +26,22 @@ export async function POST(request: Request) {
   try {
     const url = new URL(request.url);
     const action = url.searchParams.get('action');
+
+    // Apply rate limiting only for reset requests (not for password update)
+    if (action === 'request') {
+      const identifier = getClientIdentifier(request);
+      const rateLimitResult = await applyRateLimit(passwordResetRateLimit, identifier);
+
+      if (isRateLimited(rateLimitResult)) {
+        return NextResponse.json(
+          { error: 'Too many requests. Please try again later.' },
+          {
+            status: 429,
+            headers: createRateLimitHeaders(rateLimitResult),
+          }
+        );
+      }
+    }
 
     const body = await request.json();
 

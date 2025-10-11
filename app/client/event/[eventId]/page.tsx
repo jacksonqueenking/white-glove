@@ -1,5 +1,5 @@
-import { EventDetailPanel } from "../../../../components/client/EventDetailPanel";
-import type { CalendarItem, EventTask } from "../../../../components/client/EventDetailPanel";
+import { EventDetailPanel } from "../../../../components/event/EventDetailPanel";
+import type { CalendarItem, EventTask } from "../../../../components/event/EventDetailPanel";
 
 interface ClientEventPageProps {
   params: Promise<{ eventId: string }>;

@@ -1,4 +1,16 @@
-export default function Home() {
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+
+export default async function Home() {
+  // Check if user is authenticated and redirect to appropriate dashboard
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (user) {
+    const userType = user.user_metadata?.user_type || 'client';
+    redirect(`/${userType}/dashboard`);
+  }
+
   return (
     <main>
       <section className="hero-card">
