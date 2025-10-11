@@ -4,12 +4,12 @@ interface ClientEventPageProps {
 
 const STATUS_TOKENS: Record<
   "todo" | "in_progress" | "completed" | "attention",
-  { label: string; tone: string }
+  { label: string; badge: string }
 > = {
-  todo: { label: "To do", tone: "text-rose-500" },
-  in_progress: { label: "In progress", tone: "text-amber-500" },
-  completed: { label: "Complete", tone: "text-emerald-500" },
-  attention: { label: "Needs attention", tone: "text-orange-600" },
+  todo: { label: "To do", badge: "bg-[#f7e3dc] text-[#b16455]" },
+  in_progress: { label: "In progress", badge: "bg-[#f4e7ce] text-[#a87b3b]" },
+  completed: { label: "Complete", badge: "bg-[#e4f1e6] text-[#3c8650]" },
+  attention: { label: "Needs attention", badge: "bg-[#fae5d4] text-[#c96f3a]" },
 };
 
 const EVENT_DATA = {
@@ -72,41 +72,41 @@ export default async function ClientEventPage({ params }: ClientEventPageProps) 
   const highlightedElement = ELEMENTS[1];
 
   return (
-    <section className="space-y-8">
-      <header className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Event</p>
-            <h1 className="mt-1 text-3xl font-semibold text-slate-900">{EVENT_DATA.name}</h1>
-            <p className="mt-2 text-sm text-slate-600">
+    <section className="mx-auto max-w-6xl space-y-10">
+      <header className="glass-card px-8 py-7">
+        <div className="flex flex-wrap items-start justify-between gap-6">
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b09c86]">Event</p>
+            <h1 className="text-3xl font-semibold text-[#3f3a33]">{EVENT_DATA.name}</h1>
+            <p className="text-sm text-[#6f6453]">
               Coordinated by {EVENT_DATA.planner} • Guest count: {EVENT_DATA.guestCount}
             </p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            <p className="flex items-center gap-2 font-medium text-slate-700">
+          <div className="glass-card flex min-w-[220px] flex-col gap-2 rounded-2xl border-[#e7dfd4] bg-[#fdfaf5] px-5 py-4 text-sm text-[#6f6453] shadow-none">
+            <p className="flex items-center gap-2 font-medium text-[#4d463b]">
               <span aria-hidden>📍</span>
               {EVENT_DATA.venue}
             </p>
-            <p className="mt-2 flex items-center gap-2">
+            <p className="flex items-center gap-2">
               <span aria-hidden>📅</span>
               {EVENT_DATA.date}
             </p>
-            <p className="mt-1 flex items-center gap-2">
+            <p className="flex items-center gap-2">
               <span aria-hidden>⏰</span>
               {EVENT_DATA.time}
             </p>
           </div>
         </div>
-        <p className="mt-4 text-sm text-slate-600">{EVENT_DATA.summary}</p>
-        <p className="mt-2 text-xs text-slate-500">Event ID: {eventId}</p>
+        <p className="mt-5 max-w-2xl text-sm leading-relaxed text-[#6f6453]">{EVENT_DATA.summary}</p>
+        <p className="mt-3 text-xs uppercase tracking-[0.2em] text-[#b09c86]">Event ID • {eventId}</p>
       </header>
 
-      <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
+      <div className="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-4">
-          <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <section className="glass-card px-5 py-6">
             <header className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-700">Elements</h2>
-              <span className="text-xs text-slate-500">Status at a glance</span>
+              <h2 className="text-sm font-semibold text-[#4d463b]">Elements</h2>
+              <span className="text-xs text-[#a18a72]">Status at a glance</span>
             </header>
             <ul className="mt-4 space-y-2">
               {ELEMENTS.map((element) => {
@@ -118,71 +118,82 @@ export default async function ClientEventPage({ params }: ClientEventPageProps) 
                     <button
                       type="button"
                       className={[
-                        "flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors",
+                        "flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition",
                         isActive
-                          ? "border-blue-200 bg-blue-50"
-                          : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50",
+                          ? "border-[#f0bda4] bg-[#fef5ef] shadow-sm"
+                          : "border-transparent bg-transparent hover:border-[#f0bda4] hover:bg-[#fef5ef]",
                       ].join(" ")}
                     >
                       <div>
-                        <p className="text-sm font-medium text-slate-700">{element.name}</p>
-                        <p className="mt-1 text-xs text-slate-500">{element.vendor}</p>
+                        <p className="text-sm font-semibold text-[#3f3a33]">{element.name}</p>
+                        <p className="mt-1 text-xs text-[#a18a72]">{element.vendor}</p>
                       </div>
-                      <span className={`text-xs font-medium ${token.tone}`}>
-                        {token.label === "Needs attention" ? "❗" : "●"} {token.label}
+                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-medium ${token.badge}`}>
+                        {token.label}
                       </span>
                     </button>
                   </li>
                 );
               })}
             </ul>
-            <div className="mt-6 flex flex-col gap-2">
+            <div className="mt-6 grid gap-2">
               <button
                 type="button"
-                className="inline-flex w-full items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
+                className="inline-flex items-center justify-center rounded-full bg-[#f0bda4] px-4 py-2 text-sm font-semibold text-[#624230] transition hover:bg-[#eba98a]"
               >
-                View Contract
+                View contract
               </button>
               <button
                 type="button"
-                className="inline-flex w-full items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
+                className="inline-flex items-center justify-center rounded-full border border-[#e7dfd4] px-4 py-2 text-sm font-medium text-[#6f6453] transition hover:bg-[#f1e9df]"
               >
-                Manage Guests
+                Manage guests
               </button>
             </div>
           </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-4">
-            <h2 className="text-sm font-semibold text-slate-700">Next Actions</h2>
-            <ul className="mt-3 space-y-2 text-xs text-slate-600">
-              <li>• Approve catering menu adjustments</li>
-              <li>• Upload photography shot list by Oct 10</li>
-              <li>• Review floral proposals from Petals &amp; Co.</li>
+          <section className="glass-card px-5 py-5">
+            <h2 className="text-sm font-semibold text-[#4d463b]">Next actions</h2>
+            <ul className="mt-3 space-y-3 text-xs leading-relaxed text-[#6f6453]">
+              <li className="flex gap-2">
+                <span className="mt-0.5 text-[#f0bda4]">•</span>
+                Approve catering menu adjustments
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-0.5 text-[#f0bda4]">•</span>
+                Upload photography shot list by Oct 10
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-0.5 text-[#f0bda4]">•</span>
+                Review floral proposals from Petals &amp; Co.
+              </li>
             </ul>
           </section>
         </aside>
 
-        <section className="space-y-4">
-          <header className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Focused element</p>
-              <h2 className="mt-1 text-2xl font-semibold text-slate-900">{highlightedElement.name}</h2>
-              <p className="mt-2 text-sm text-slate-600">{highlightedElement.description}</p>
+        <section className="space-y-5">
+          <header className="glass-card flex flex-wrap items-start justify-between gap-6 px-7 py-6">
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b09c86]">
+                Focused element
+              </p>
+              <h2 className="text-2xl font-semibold text-[#3f3a33]">{highlightedElement.name}</h2>
+              <p className="text-sm leading-relaxed text-[#6f6453]">{highlightedElement.description}</p>
             </div>
-            <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-right text-sm text-slate-700">
-              <p className="font-semibold">Current estimate</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{highlightedElement.price}</p>
-              <p className="mt-2 text-xs text-slate-500">Provided by {highlightedElement.vendor}</p>
+            <div className="rounded-2xl border border-[#f0bda4] bg-[#fef5ef] px-5 py-4 text-right text-sm text-[#6f6453]">
+              <p className="font-semibold text-[#4d463b]">Current estimate</p>
+              <p className="mt-1 text-2xl font-bold text-[#3f3a33]">{highlightedElement.price}</p>
+              <p className="mt-2 text-xs text-[#a18a72]">Provided by {highlightedElement.vendor}</p>
             </div>
           </header>
 
-          <article className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-            <h3 className="text-sm font-semibold text-slate-700">What happens next</h3>
-            <p className="mt-2">
-              The venue is waiting for your approval on the updated vegetarian menu. Once confirmed, the AI assistant
-              will notify the caterer and create any follow-up tasks needed for final guest counts.
+          <article className="glass-card px-7 py-6 text-sm leading-relaxed text-[#6f6453]">
+            <h3 className="text-sm font-semibold text-[#4d463b]">What happens next</h3>
+            <p className="mt-3">
+              The venue is waiting for your approval on the updated vegetarian menu. Once confirmed, the assistant will
+              notify the caterer and create any follow-up tasks needed for final guest counts.
             </p>
-            <p className="mt-3 text-xs text-slate-500">
+            <p className="mt-4 rounded-2xl bg-[#fef5ef] px-4 py-3 text-xs text-[#b16455]">
               Notes: {highlightedElement.notes}
             </p>
           </article>
@@ -192,7 +203,7 @@ export default async function ClientEventPage({ params }: ClientEventPageProps) 
               <button
                 key={action}
                 type="button"
-                className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
+                className="inline-flex items-center justify-center rounded-full border border-[#e7dfd4] px-4 py-2 text-sm font-medium text-[#6f6453] transition hover:bg-[#f1e9df]"
               >
                 {action}
               </button>
