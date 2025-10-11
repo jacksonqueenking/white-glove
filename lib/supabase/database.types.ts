@@ -155,6 +155,35 @@ export interface Database {
           created_at?: string
         }
       }
+      venue_vendors: {
+        Row: {
+          venue_vendor_id: string
+          venue_id: string
+          vendor_id: string
+          approval_status: 'pending' | 'approved' | 'rejected' | 'n/a'
+          cois: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          venue_vendor_id?: string
+          venue_id: string
+          vendor_id: string
+          approval_status?: 'pending' | 'approved' | 'rejected' | 'n/a'
+          cois?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          venue_vendor_id?: string
+          venue_id?: string
+          vendor_id?: string
+          approval_status?: 'pending' | 'approved' | 'rejected' | 'n/a'
+          cois?: Json
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

@@ -81,8 +81,6 @@ export async function POST(request: Request) {
     const venueResult = await createVenueRecord(
       userId,
       name,
-      email,
-      phone,
       { street, city, state, zip, country: 'US' },
       description
     );

@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const userType = (searchParams.get('type') as 'client' | 'venue' | 'vendor') || 'client';
@@ -188,5 +188,13 @@ export default function LoginPage() {
         </p>
       </form>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-md space-y-6 text-center">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

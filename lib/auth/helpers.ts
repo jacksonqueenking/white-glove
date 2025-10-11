@@ -1,6 +1,7 @@
 // Authentication helper functions
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import type { Database } from '@/lib/supabase/database.types.gen';
 import type { UserType, Address } from './validation';
 import type { AuthResponse } from './types';
 
@@ -295,12 +296,14 @@ export async function createClientRecord(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = createServiceClient();
 
-  const { error } = await supabase.from('clients').insert({
+  const clientData: Database['public']['Tables']['clients']['Insert'] = {
     client_id: userId,
     name,
     email,
     phone,
-  });
+  };
+
+  const { error } = await supabase.from('clients').insert(clientData);
 
   if (error) {
     return { success: false, error: error.message };
@@ -315,19 +318,19 @@ export async function createClientRecord(
 export async function createVenueRecord(
   userId: string,
   name: string,
-  email: string,
-  phone: string,
   address: Address,
   description: string
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = createServiceClient();
 
-  const { error } = await supabase.from('venues').insert({
+  const venueData: Database['public']['Tables']['venues']['Insert'] = {
     venue_id: userId,
     name,
     description,
-    address,
-  });
+    address: address as any,
+  };
+
+  const { error } = await supabase.from('venues').insert(venueData);
 
   if (error) {
     return { success: false, error: error.message };
@@ -356,7 +359,7 @@ export async function createVendorRecord(
     phone_number: phone,
     address,
     description,
-  });
+  } as any);
 
   if (error) {
     return { success: false, error: error.message };
@@ -376,8 +379,8 @@ export async function verifyInvitationToken(
   const { data, error } = await supabase
     .from('invitations')
     .select('*')
-    .eq('token', token)
-    .eq('status', 'pending')
+    .eq('token' as any, token)
+    .eq('status' as any, 'pending')
     .single();
 
   if (error || !data) {
@@ -385,11 +388,11 @@ export async function verifyInvitationToken(
   }
 
   // Check if expired
-  if (new Date(data.expires_at) < new Date()) {
+  if (new Date((data as any).expires_at) < new Date()) {
     await supabase
       .from('invitations')
-      .update({ status: 'expired' })
-      .eq('invitation_id', data.invitation_id);
+      .update({ status: 'expired' } as any)
+      .eq('invitation_id' as any, (data as any).invitation_id);
 
     return { valid: false, error: 'Invitation has expired' };
   }
@@ -410,8 +413,8 @@ export async function markInvitationUsed(
     .update({
       status: 'accepted',
       used_at: new Date().toISOString(),
-    })
-    .eq('token', token);
+    } as any)
+    .eq('token' as any, token);
 
   if (error) {
     return { success: false, error: error.message };
