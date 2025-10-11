@@ -1,16 +1,8 @@
+import { EventDetailPanel } from "../../../../components/client/EventDetailPanel";
+
 interface ClientEventPageProps {
   params: Promise<{ eventId: string }>;
 }
-
-const STATUS_TOKENS: Record<
-  "todo" | "in_progress" | "completed" | "attention",
-  { label: string; badge: string }
-> = {
-  todo: { label: "To do", badge: "bg-[#f7e3dc] text-[#b16455]" },
-  in_progress: { label: "In progress", badge: "bg-[#f4e7ce] text-[#a87b3b]" },
-  completed: { label: "Complete", badge: "bg-[#e4f1e6] text-[#3c8650]" },
-  attention: { label: "Needs attention", badge: "bg-[#fae5d4] text-[#c96f3a]" },
-};
 
 const EVENT_DATA = {
   name: "Smith Wedding",
@@ -66,10 +58,23 @@ const ELEMENTS = [
   },
 ];
 
+const NEXT_ACTIONS = [
+  "Approve catering menu adjustments",
+  "Upload photography shot list by Oct 10",
+  "Review floral proposals from Petals & Co.",
+];
+
 // Split-screen event planning UI tied to the AI assistant conversation.
 export default async function ClientEventPage({ params }: ClientEventPageProps) {
   const { eventId } = await params;
-  const highlightedElement = ELEMENTS[1];
+
+  const statusSummary = ELEMENTS.reduce(
+    (acc, element) => {
+      acc[element.status] += 1;
+      return acc;
+    },
+    { todo: 0, in_progress: 0, completed: 0, attention: 0 },
+  );
 
   return (
     <section className="mx-auto max-w-6xl space-y-10">
@@ -101,42 +106,33 @@ export default async function ClientEventPage({ params }: ClientEventPageProps) 
         <p className="mt-3 text-xs uppercase tracking-[0.2em] text-[#b09c86]">Event ID • {eventId}</p>
       </header>
 
-      <div className="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid gap-8 xl:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="space-y-4">
-          <section className="glass-card px-5 py-6">
-            <header className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[#4d463b]">Elements</h2>
-              <span className="text-xs text-[#a18a72]">Status at a glance</span>
-            </header>
-            <ul className="mt-4 space-y-2">
-              {ELEMENTS.map((element) => {
-                const token = STATUS_TOKENS[element.status];
-                const isActive = element.id === highlightedElement.id;
-
-                return (
-                  <li key={element.id}>
-                    <button
-                      type="button"
-                      className={[
-                        "flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition",
-                        isActive
-                          ? "border-[#f0bda4] bg-[#fef5ef] shadow-sm"
-                          : "border-transparent bg-transparent hover:border-[#f0bda4] hover:bg-[#fef5ef]",
-                      ].join(" ")}
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-[#3f3a33]">{element.name}</p>
-                        <p className="mt-1 text-xs text-[#a18a72]">{element.vendor}</p>
-                      </div>
-                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-medium ${token.badge}`}>
-                        {token.label}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
+          <section className="glass-card px-5 py-6 text-sm text-[#6f6453]">
+            <h2 className="text-sm font-semibold text-[#4d463b]">Status snapshot</h2>
+            <ul className="mt-4 space-y-3 text-xs">
+              <li className="flex items-center justify-between">
+                <span className="text-[#a18a72]">Completed</span>
+                <span className="font-semibold text-[#3f3a33]">{statusSummary.completed}</span>
+              </li>
+              <li className="flex items-center justify-between">
+                <span className="text-[#a18a72]">In progress</span>
+                <span className="font-semibold text-[#3f3a33]">{statusSummary.in_progress}</span>
+              </li>
+              <li className="flex items-center justify-between">
+                <span className="text-[#a18a72]">Needs attention</span>
+                <span className="font-semibold text-[#3f3a33]">{statusSummary.attention}</span>
+              </li>
+              <li className="flex items-center justify-between">
+                <span className="text-[#a18a72]">To do</span>
+                <span className="font-semibold text-[#3f3a33]">{statusSummary.todo}</span>
+              </li>
             </ul>
-            <div className="mt-6 grid gap-2">
+          </section>
+
+          <section className="glass-card px-5 py-6">
+            <h2 className="text-sm font-semibold text-[#4d463b]">Quick actions</h2>
+            <div className="mt-4 grid gap-2">
               <button
                 type="button"
                 className="inline-flex items-center justify-center rounded-full bg-[#f0bda4] px-4 py-2 text-sm font-semibold text-[#624230] transition hover:bg-[#eba98a]"
@@ -151,65 +147,9 @@ export default async function ClientEventPage({ params }: ClientEventPageProps) 
               </button>
             </div>
           </section>
-
-          <section className="glass-card px-5 py-5">
-            <h2 className="text-sm font-semibold text-[#4d463b]">Next actions</h2>
-            <ul className="mt-3 space-y-3 text-xs leading-relaxed text-[#6f6453]">
-              <li className="flex gap-2">
-                <span className="mt-0.5 text-[#f0bda4]">•</span>
-                Approve catering menu adjustments
-              </li>
-              <li className="flex gap-2">
-                <span className="mt-0.5 text-[#f0bda4]">•</span>
-                Upload photography shot list by Oct 10
-              </li>
-              <li className="flex gap-2">
-                <span className="mt-0.5 text-[#f0bda4]">•</span>
-                Review floral proposals from Petals &amp; Co.
-              </li>
-            </ul>
-          </section>
         </aside>
 
-        <section className="space-y-5">
-          <header className="glass-card flex flex-wrap items-start justify-between gap-6 px-7 py-6">
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b09c86]">
-                Focused element
-              </p>
-              <h2 className="text-2xl font-semibold text-[#3f3a33]">{highlightedElement.name}</h2>
-              <p className="text-sm leading-relaxed text-[#6f6453]">{highlightedElement.description}</p>
-            </div>
-            <div className="rounded-2xl border border-[#f0bda4] bg-[#fef5ef] px-5 py-4 text-right text-sm text-[#6f6453]">
-              <p className="font-semibold text-[#4d463b]">Current estimate</p>
-              <p className="mt-1 text-2xl font-bold text-[#3f3a33]">{highlightedElement.price}</p>
-              <p className="mt-2 text-xs text-[#a18a72]">Provided by {highlightedElement.vendor}</p>
-            </div>
-          </header>
-
-          <article className="glass-card px-7 py-6 text-sm leading-relaxed text-[#6f6453]">
-            <h3 className="text-sm font-semibold text-[#4d463b]">What happens next</h3>
-            <p className="mt-3">
-              The venue is waiting for your approval on the updated vegetarian menu. Once confirmed, the assistant will
-              notify the caterer and create any follow-up tasks needed for final guest counts.
-            </p>
-            <p className="mt-4 rounded-2xl bg-[#fef5ef] px-4 py-3 text-xs text-[#b16455]">
-              Notes: {highlightedElement.notes}
-            </p>
-          </article>
-
-          <div className="flex flex-wrap gap-3">
-            {highlightedElement.actions.map((action) => (
-              <button
-                key={action}
-                type="button"
-                className="inline-flex items-center justify-center rounded-full border border-[#e7dfd4] px-4 py-2 text-sm font-medium text-[#6f6453] transition hover:bg-[#f1e9df]"
-              >
-                {action}
-              </button>
-            ))}
-          </div>
-        </section>
+        <EventDetailPanel elements={ELEMENTS} nextActions={NEXT_ACTIONS} />
       </div>
     </section>
   );
