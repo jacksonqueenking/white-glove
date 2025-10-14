@@ -1,0 +1,198 @@
+/**
+ * OpenAI Agents SDK Integration
+ *
+ * Sets up AI agents using OpenAI's Agents SDK with our existing
+ * instructions, tools, and context builders.
+ */
+
+import { Agent, tool } from '@openai/agents';
+import { z } from 'zod';
+import {
+  generateClientSystemPrompt,
+  generateVenueGeneralSystemPrompt,
+  generateVenueEventSystemPrompt,
+} from './prompts';
+import {
+  buildClientContext,
+  buildVenueGeneralContext,
+  buildVenueEventContext,
+} from './context';
+import {
+  clientToolHandlers,
+  venueGeneralToolHandlers,
+  venueEventToolHandlers,
+  executeToolCall,
+} from './toolHandlers';
+import { clientTools, venueGeneralTools, venueEventTools } from './tools';
+
+/**
+ * Convert OpenAI tool definitions to Agents SDK tool format
+ */
+function convertToAgentTool(
+  toolDef: any,
+  handler: (params: any, context: any) => Promise<any>,
+  context: { userId: string; userType: 'client' | 'venue' | 'vendor' }
+) {
+  // Extract the parameter schema
+  const paramSchema = z.object(
+    Object.entries(toolDef.function.parameters.properties).reduce((acc, [key, value]: [string, any]) => {
+      // Convert JSON schema types to Zod types
+      let zodType;
+      if (value.type === 'string') {
+        zodType = value.enum ? z.enum(value.enum) : z.string();
+      } else if (value.type === 'number') {
+        zodType = z.number();
+      } else if (value.type === 'boolean') {
+        zodType = z.boolean();
+      } else if (value.type === 'object') {
+        zodType = z.any();
+      } else {
+        zodType = z.any();
+      }
+
+      // Make optional if not in required array
+      if (!toolDef.function.parameters.required?.includes(key)) {
+        zodType = zodType.optional();
+      }
+
+      if (value.description) {
+        zodType = zodType.describe(value.description);
+      }
+
+      acc[key] = zodType;
+      return acc;
+    }, {} as Record<string, any>)
+  );
+
+  return tool({
+    name: toolDef.function.name,
+    description: toolDef.function.description,
+    parameters: paramSchema,
+    execute: async (params) => {
+      try {
+        const result = await handler(params, context);
+        return JSON.stringify(result);
+      } catch (error) {
+        return JSON.stringify({
+          error: error instanceof Error ? error.message : 'Tool execution failed',
+        });
+      }
+    },
+  });
+}
+
+/**
+ * Create Client AI Agent
+ */
+export async function createClientAgent(clientId: string, eventId: string) {
+  // Build context
+  const context = await buildClientContext(clientId, eventId);
+
+  // Generate system prompt
+  const instructions = generateClientSystemPrompt(context);
+
+  // Convert tools
+  const agentContext = { userId: clientId, userType: 'client' as const };
+  const tools = clientTools.map(toolDef =>
+    convertToAgentTool(
+      toolDef,
+      clientToolHandlers[toolDef.function.name],
+      agentContext
+    )
+  );
+
+  // Create agent
+  const agent = new Agent({
+    name: 'Client Assistant',
+    model: 'gpt-4o',
+    instructions,
+    tools,
+  });
+
+  return { agent, context };
+}
+
+/**
+ * Create Venue General AI Agent
+ */
+export async function createVenueGeneralAgent(venueId: string) {
+  // Build context
+  const context = await buildVenueGeneralContext(venueId);
+
+  // Generate system prompt
+  const instructions = generateVenueGeneralSystemPrompt(context);
+
+  // Convert tools
+  const agentContext = { userId: venueId, userType: 'venue' as const };
+  const tools = venueGeneralTools.map(toolDef =>
+    convertToAgentTool(
+      toolDef,
+      venueGeneralToolHandlers[toolDef.function.name],
+      agentContext
+    )
+  );
+
+  // Create agent
+  const agent = new Agent({
+    name: 'Venue Assistant',
+    model: 'gpt-4o',
+    instructions,
+    tools,
+  });
+
+  return { agent, context };
+}
+
+/**
+ * Create Venue Event AI Agent
+ */
+export async function createVenueEventAgent(venueId: string, eventId: string) {
+  // Build context
+  const context = await buildVenueEventContext(venueId, eventId);
+
+  // Generate system prompt
+  const instructions = generateVenueEventSystemPrompt(context);
+
+  // Convert tools
+  const agentContext = { userId: venueId, userType: 'venue' as const };
+  const tools = venueEventTools.map(toolDef =>
+    convertToAgentTool(
+      toolDef,
+      venueEventToolHandlers[toolDef.function.name],
+      agentContext
+    )
+  );
+
+  // Create agent
+  const agent = new Agent({
+    name: 'Event Manager',
+    model: 'gpt-4o',
+    instructions,
+    tools,
+  });
+
+  return { agent, context };
+}
+
+/**
+ * Helper to run an agent with a message
+ */
+export async function runAgent(
+  agent: Agent,
+  message: string,
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
+) {
+  const { Agent: AgentSDK, run } = await import('@openai/agents');
+
+  // Build messages array
+  const messages = conversationHistory || [];
+  messages.push({ role: 'user', content: message });
+
+  // Run agent
+  const result = await run(agent, messages);
+
+  return {
+    response: result.finalOutput,
+    messages: result.messages,
+  };
+}

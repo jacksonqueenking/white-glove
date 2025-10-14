@@ -68,6 +68,8 @@ At the heart of the platform is a LangGraph-powered orchestrator that:
 - Redis (caching, session management)
 
 **AI & Orchestration:**
+- OpenAI ChatKit (production chat UI)
+- OpenAI Agents SDK (agent orchestration)
 - LangGraph (state management, workflow orchestration)
 - Provider-agnostic LLM architecture
 
@@ -77,8 +79,9 @@ At the heart of the platform is a LangGraph-powered orchestrator that:
 - Pre-built calendar component (TBD)
 
 **Real-time Features:**
+- ChatKit streaming responses
 - Supabase real-time subscriptions for live updates
-- WebSockets for chat and notifications
+- WebSockets for notifications
 
 ## Project Structure
 
@@ -94,10 +97,12 @@ At the heart of the platform is a LangGraph-powered orchestrator that:
 │   ├── ai-agents.md
 │   ├── tasks-and-workflows.md
 │   ├── messaging.md
+│   ├── chatkit-setup.md (ChatKit integration guide)
 │   └── frontend/
 │       ├── client-interface.md
 │       ├── venue-interface.md
 │       └── vendor-interface.md
+├── CHATKIT_IMPLEMENTATION.md (implementation summary)
 ├── app/
 │   └── README.md
 ├── components/
@@ -135,7 +140,12 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
 STRIPE_SECRET_KEY=your_stripe_secret_key
 REDIS_URL=your_redis_url
-LLM_API_KEY=your_llm_api_key
+OPENAI_API_KEY=your_openai_api_key
+
+# Optional: Agent Builder workflow IDs (for production)
+OPENAI_WORKFLOW_ID_CLIENT=workflow_...
+OPENAI_WORKFLOW_ID_VENUE_GENERAL=workflow_...
+OPENAI_WORKFLOW_ID_VENUE_EVENT=workflow_...
 ```
 
 ### Installation
@@ -181,6 +191,7 @@ npx supabase db push
 ### Core Architecture
 - [Architecture Overview](./docs/architecture.md) - System design, AI orchestration
 - [Database Schema](./docs/schema.md) - All entities and relationships
+- **[ChatKit Integration](./CHATKIT_IMPLEMENTATION.md)** - **NEW: ChatKit & Agents SDK implementation**
 
 ### User Interfaces
 - [Client Interface](./docs/frontend/client-interface.md) - Client view specifications
@@ -192,6 +203,7 @@ npx supabase db push
 - [Authentication](./docs/authentication.md) - Auth strategies and security
 - [Payments](./docs/payments.md) - Stripe integration and billing
 - [AI Agents](./docs/ai-agents.md) - LLM orchestration and tools
+- **[ChatKit Setup](./docs/chatkit-setup.md)** - **NEW: Detailed ChatKit setup guide**
 - [Tasks & Workflows](./docs/tasks-and-workflows.md) - Task system and approvals
 - [Messaging](./docs/messaging.md) - Message vs chat, threading, notifications
 

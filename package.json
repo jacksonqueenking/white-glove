@@ -13,6 +13,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@openai/agents": "^0.1.9",
+    "@openai/chatkit-react": "^1.1.1",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.75.0",
     "@upstash/ratelimit": "^2.0.6",
@@ -20,7 +22,7 @@
     "next": "^15.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "zod": "^4.1.12"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.14",
