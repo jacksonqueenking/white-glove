@@ -23,10 +23,18 @@ export function AppShell({ children, mode }: AppShellProps) {
 
   // Render appropriate chat component based on mode and context
   const renderChatComponent = () => {
-    if (loading || !user) {
+    if (loading) {
       return (
         <div className="flex h-full items-center justify-center text-sm text-[#8e806c]">
           Loading chat...
+        </div>
+      );
+    }
+
+    if (!user) {
+      return (
+        <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[#8e806c]">
+          Please log in to access chat
         </div>
       );
     }

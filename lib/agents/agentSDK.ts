@@ -89,7 +89,7 @@ export async function createClientAgent(clientId: string, eventId: string) {
   const context = await buildClientContext(clientId, eventId);
 
   // Generate system prompt
-  const instructions = generateClientSystemPrompt(context);
+  const instructions = generateClientSystemPrompt(context as any);
 
   // Convert tools
   const agentContext = { userId: clientId, userType: 'client' as const };
@@ -120,7 +120,7 @@ export async function createVenueGeneralAgent(venueId: string) {
   const context = await buildVenueGeneralContext(venueId);
 
   // Generate system prompt
-  const instructions = generateVenueGeneralSystemPrompt(context);
+  const instructions = generateVenueGeneralSystemPrompt(context as any);
 
   // Convert tools
   const agentContext = { userId: venueId, userType: 'venue' as const };
@@ -151,7 +151,7 @@ export async function createVenueEventAgent(venueId: string, eventId: string) {
   const context = await buildVenueEventContext(venueId, eventId);
 
   // Generate system prompt
-  const instructions = generateVenueEventSystemPrompt(context);
+  const instructions = generateVenueEventSystemPrompt(context as any);
 
   // Convert tools
   const agentContext = { userId: venueId, userType: 'venue' as const };
@@ -179,20 +179,15 @@ export async function createVenueEventAgent(venueId: string, eventId: string) {
  */
 export async function runAgent(
   agent: Agent,
-  message: string,
-  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
+  message: string
 ) {
-  const { Agent: AgentSDK, run } = await import('@openai/agents');
+  const { run } = await import('@openai/agents');
 
-  // Build messages array
-  const messages = conversationHistory || [];
-  messages.push({ role: 'user', content: message });
-
-  // Run agent
-  const result = await run(agent, messages);
+  // Run agent with the message
+  const result = await run(agent, message);
 
   return {
     response: result.finalOutput,
-    messages: result.messages,
+    result,
   };
 }

@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { supabase } from '../db/supabaseClient';
+import { createClient } from '../supabase/client';
 
 export interface CurrentUser {
   id: string;
@@ -24,6 +24,7 @@ export function useCurrentUser() {
   useEffect(() => {
     async function loadUser() {
       try {
+        const supabase = createClient();
         const { data: { user: authUser }, error } = await supabase.auth.getUser();
 
         if (error || !authUser) {
@@ -33,10 +34,11 @@ export function useCurrentUser() {
         }
 
         // Check which table the user exists in
+        // Use maybeSingle() instead of single() to handle "not found" gracefully
         const [clientRes, venueRes, vendorRes] = await Promise.all([
-          supabase.from('clients').select('client_id').eq('email', authUser.email!).single(),
-          supabase.from('venues').select('venue_id').eq('email', authUser.email!).single(),
-          supabase.from('vendors').select('vendor_id').eq('email', authUser.email!).single(),
+          supabase.from('clients').select('client_id').eq('email', authUser.email!).maybeSingle(),
+          supabase.from('venues').select('venue_id').eq('email', authUser.email!).maybeSingle(),
+          supabase.from('vendors').select('vendor_id').eq('email', authUser.email!).maybeSingle(),
         ]);
 
         if (clientRes.data) {

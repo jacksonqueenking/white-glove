@@ -6,19 +6,36 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient as SupabaseClientType } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 
-// Validate environment variables
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Lazy-initialized clients (singleton pattern for vercel dev compatibility)
+let _supabase: SupabaseClientType<Database> | null = null;
+let _supabaseAdmin: SupabaseClientType<Database> | null = null;
 
-if (!supabaseUrl) {
-  throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable');
+// Get environment variables
+function getSupabaseUrl(): string {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable');
+  }
+  return url;
 }
 
-if (!supabaseAnonKey) {
-  throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable');
+function getSupabaseAnonKey(): string {
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!key) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable');
+  }
+  return key;
+}
+
+function getSupabaseServiceRoleKey(): string {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) {
+    throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY environment variable');
+  }
+  return key;
 }
 
 /**
@@ -37,16 +54,23 @@ if (!supabaseAnonKey) {
  *   .eq('client_id', userId);
  * ```
  */
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
-    },
+export const supabase = new Proxy({} as SupabaseClientType<Database>, {
+  get(_target, prop) {
+    if (!_supabase) {
+      _supabase = createClient<Database>(getSupabaseUrl(), getSupabaseAnonKey(), {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+        realtime: {
+          params: {
+            eventsPerSecond: 10,
+          },
+        },
+      });
+    }
+    return (_supabase as any)[prop];
   },
 });
 
@@ -75,16 +99,23 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
  *   });
  * ```
  */
-export const supabaseAdmin = createClient<Database>(
-  supabaseUrl,
-  supabaseServiceRoleKey || '',
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-);
+export const supabaseAdmin = new Proxy({} as SupabaseClientType<Database>, {
+  get(_target, prop) {
+    if (!_supabaseAdmin) {
+      _supabaseAdmin = createClient<Database>(
+        getSupabaseUrl(),
+        getSupabaseServiceRoleKey(),
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        }
+      );
+    }
+    return (_supabaseAdmin as any)[prop];
+  },
+});
 
 /**
  * Get Supabase client instance (alias for client-side client)
