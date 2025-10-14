@@ -85,10 +85,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // If authenticated and trying to access auth pages, redirect to dashboard
+  // If authenticated and trying to access auth pages, redirect to base route
   if (isAuthRoute && user) {
     const userType = user.user_metadata?.user_type || 'client';
-    return NextResponse.redirect(new URL(`/${userType}/dashboard`, request.url));
+    return NextResponse.redirect(new URL(`/${userType}`, request.url));
   }
 
   // Check role-based access
@@ -101,8 +101,8 @@ export async function middleware(request: NextRequest) {
       (isVenueRoute && userType !== 'venue') ||
       (isVendorRoute && userType !== 'vendor')
     ) {
-      // Redirect to their correct dashboard
-      return NextResponse.redirect(new URL(`/${userType}/dashboard`, request.url));
+      // Redirect to their correct base route
+      return NextResponse.redirect(new URL(`/${userType}`, request.url));
     }
   }
 

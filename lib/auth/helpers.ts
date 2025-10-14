@@ -18,7 +18,7 @@ export async function sendMagicLink(
   const supabase = await createClient();
 
   // Use the auth callback route to handle the code exchange
-  const destination = redirectTo || `/${userType}/dashboard`;
+  const destination = redirectTo || `/${userType}`;
   const callbackUrl = `${BASE_URL}/api/auth/callback?next=${encodeURIComponent(destination)}`;
 
   const { error } = await supabase.auth.signInWithOtp({
@@ -69,7 +69,7 @@ export async function signUpWithPassword(
         onboarding_completed: false,
         ...additionalData,
       },
-      emailRedirectTo: `${BASE_URL}/api/auth/callback?next=${encodeURIComponent(`/${userType}/dashboard`)}`,
+      emailRedirectTo: `${BASE_URL}/api/auth/callback?next=${encodeURIComponent(`/${userType}`)}`,
     },
   });
 

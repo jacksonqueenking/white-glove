@@ -8,7 +8,7 @@ export default async function Home() {
 
   if (user) {
     const userType = user.user_metadata?.user_type || 'client';
-    redirect(`/${userType}/dashboard`);
+    redirect(`/${userType}`);
   }
 
   return (

@@ -1,4 +1,3 @@
-import { VenueChatWindow } from "../../../../components/venue/VenueChatWindow";
 import { EventDetailPanel } from "../../../../components/event/EventDetailPanel";
 import type { CalendarItem, EventTask, EventElement } from "../../../../components/event/EventDetailPanel";
 
@@ -119,24 +118,19 @@ const CALENDAR_ITEMS: CalendarItem[] = [
   },
 ];
 
-// Venue-facing event hub with split-screen layout: chat + event detail panel.
+// Venue-facing event hub using shared layout with chat sidebar.
 export default async function VenueEventPage({ params }: VenueEventPageProps) {
   const { eventId } = await params;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2 h-full">
-      <div className="flex flex-col min-h-0">
-        <VenueChatWindow />
-      </div>
-      <div className="flex flex-col min-h-0 overflow-auto">
-        <EventDetailPanel
-          event={{ ...EVENT_DATA, id: eventId }}
-          elements={ELEMENTS}
-          tasks={TASKS}
-          calendar={CALENDAR_ITEMS}
-          mode="venue"
-        />
-      </div>
-    </div>
+    <section className="mx-auto max-w-6xl">
+      <EventDetailPanel
+        event={{ ...EVENT_DATA, id: eventId }}
+        elements={ELEMENTS}
+        tasks={TASKS}
+        calendar={CALENDAR_ITEMS}
+        mode="venue"
+      />
+    </section>
   );
 }

@@ -20,9 +20,9 @@ export async function GET(request: Request) {
     }
 
     if (data.user) {
-      // Redirect to the appropriate dashboard based on user type
+      // Redirect to the appropriate base route based on user type
       const userType = data.user.user_metadata?.user_type || 'client';
-      const redirectTo = next !== '/' ? next : `/${userType}/dashboard`;
+      const redirectTo = next !== '/' ? next : `/${userType}`;
 
       return NextResponse.redirect(new URL(redirectTo, requestUrl.origin));
     }

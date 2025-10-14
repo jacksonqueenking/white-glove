@@ -30,7 +30,7 @@ function LoginForm() {
         body: JSON.stringify({
           email,
           userType,
-          redirectTo: redirectTo || `/${userType}/dashboard`,
+          redirectTo: redirectTo || `/${userType}`,
         }),
       });
 
@@ -67,9 +67,9 @@ function LoginForm() {
         throw new Error(data.error || 'Failed to sign in');
       }
 
-      // Redirect to appropriate dashboard
+      // Redirect to appropriate base route
       const userType = data.user?.user_metadata?.user_type || 'client';
-      const destination = redirectTo || `/${userType}/dashboard`;
+      const destination = redirectTo || `/${userType}`;
       router.push(destination);
       router.refresh(); // Force refresh to pick up new session
     } catch (err: any) {
