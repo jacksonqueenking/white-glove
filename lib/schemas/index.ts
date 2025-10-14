@@ -505,3 +505,25 @@ export const MagicLinkSchema = z.object({
   user_type: UserTypeSchema,
 });
 export type MagicLink = z.infer<typeof MagicLinkSchema>;
+
+// ============================================================================
+// ACTION HISTORY SCHEMAS
+// ============================================================================
+
+export const ActionHistorySchema = z.object({
+  action_id: z.string().uuid(),
+  event_id: z.string().uuid().nullable(),
+  user_id: z.string().uuid().nullable(),
+  user_type: UserTypeSchema.nullable(),
+  action_type: z.string().min(1, 'Action type is required'),
+  description: z.string().min(1, 'Description is required'),
+  metadata: z.any().optional(),
+  created_at: z.string().datetime(),
+});
+export type ActionHistory = z.infer<typeof ActionHistorySchema>;
+
+export const CreateActionHistorySchema = ActionHistorySchema.omit({
+  action_id: true,
+  created_at: true,
+});
+export type CreateActionHistory = z.infer<typeof CreateActionHistorySchema>;
