@@ -17,7 +17,7 @@ import {
 vi.mock('../../db/events');
 vi.mock('../../db/clients');
 vi.mock('../../db/venues');
-vi.mock('../../db/supabaseClient', () => ({
+vi.mock('../../supabase/client', () => ({
   supabase: {
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),

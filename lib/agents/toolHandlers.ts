@@ -254,6 +254,7 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
   },
 
   async search_available_elements(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       venue_id: z.string().uuid(),
       category: z.string().optional(),
@@ -264,7 +265,7 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
 
     let results;
     if (validated.search_term) {
-      results = await searchElements(validated.search_term, validated.venue_id);
+      results = await searchElements(supabase, validated.search_term, validated.venue_id);
     } else {
       // Get all elements for venue, optionally filtered by category
       const { data } = await supabase
@@ -294,6 +295,7 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
 
 export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
   async list_events(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       status: z.enum(['inquiry', 'pending_confirmation', 'confirmed', 'in_planning', 'finalized', 'completed', 'cancelled']).optional(),
       start_date: z.string().optional(),
@@ -329,9 +331,10 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
   },
 
   async get_event_summary(params, context) {
+    const supabase = createClient();
     const { event_id } = z.object({ event_id: z.string().uuid() }).parse(params);
 
-    const event = await getEvent(event_id);
+    const event = await getEvent(supabase, event_id);
     if (!event || event.venue_id !== context.userId) {
       throw new Error('Unauthorized');
     }
@@ -362,6 +365,7 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
   },
 
   async create_event(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       name: z.string(),
       date: z.string(),
@@ -376,7 +380,7 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
       throw new Error('Unauthorized: Can only create events for your own venue');
     }
 
-    const event = await createEvent({
+    const event = await createEvent(supabase, {
       ...validated,
       status: 'inquiry',
     });
@@ -385,6 +389,7 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
   },
 
   async list_vendors(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       approval_status: z.enum(['pending', 'approved', 'rejected']).optional(),
     });
@@ -404,6 +409,7 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
   },
 
   async update_vendor_approval(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       venue_vendor_id: z.string().uuid(),
       approval_status: z.enum(['approved', 'rejected']),
@@ -432,6 +438,7 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
   },
 
   async create_element(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       venue_vendor_id: z.string().uuid(),
       name: z.string(),
@@ -453,7 +460,7 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
       throw new Error('Unauthorized');
     }
 
-    const element = await createElement({
+    const element = await createElement(supabase, {
       ...validated,
       files: [],
       availability_rules: validated.availability_rules || { lead_time_days: 0 },
@@ -462,6 +469,7 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
   },
 
   async update_element(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       element_id: z.string().uuid(),
       name: z.string().optional(),
@@ -482,11 +490,12 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
     }
 
     const { element_id, ...updates } = validated;
-    const updated = await updateElement(element_id, updates);
+    const updated = await updateElement(supabase, element_id, updates);
     return updated;
   },
 
   async send_message(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       recipient_id: z.string().uuid(),
       recipient_type: z.enum(['client', 'vendor']),
@@ -501,7 +510,7 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
       ? `event-${validated.event_id}`
       : `direct-${context.userId}-${validated.recipient_id}`;
 
-    const message = await sendMessage({
+    const message = await sendMessage(supabase, {
       thread_id: threadId,
       event_id: validated.event_id,
       sender_id: context.userId,
@@ -518,6 +527,7 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
   },
 
   async get_venue_dashboard(params, context) {
+    const supabase = createClient();
     // Get event counts by status
     const { data: events } = await supabase
       .from('events')
@@ -558,6 +568,7 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
   },
 
   async get_overdue_tasks(params, context) {
+    const supabase = createClient();
     const now = new Date().toISOString();
 
     const { data: tasks } = await supabase
@@ -579,18 +590,20 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
 
 export const venueEventToolHandlers: Record<string, ToolHandler> = {
   async update_event_status(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       event_id: z.string().uuid(),
       new_status: z.enum(['inquiry', 'pending_confirmation', 'confirmed', 'in_planning', 'finalized', 'completed', 'cancelled']),
     });
     const validated = schema.parse(params);
 
-    const event = await getEvent(validated.event_id);
+    const event = await getEvent(supabase, validated.event_id);
     if (!event || event.venue_id !== context.userId) {
       throw new Error('Unauthorized');
     }
 
     const updated = await changeEventStatus(
+      supabase,
       validated.event_id,
       validated.new_status,
       context.userId,
@@ -601,6 +614,7 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
   },
 
   async update_event(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       event_id: z.string().uuid(),
       name: z.string().optional(),
@@ -610,17 +624,18 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
     });
     const validated = schema.parse(params);
 
-    const event = await getEvent(validated.event_id);
+    const event = await getEvent(supabase, validated.event_id);
     if (!event || event.venue_id !== context.userId) {
       throw new Error('Unauthorized');
     }
 
     const { event_id, ...updates } = validated;
-    const updated = await updateEvent(event_id, updates);
+    const updated = await updateEvent(supabase, event_id, updates);
     return updated;
   },
 
   async add_element_to_event(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       event_id: z.string().uuid(),
       element_id: z.string().uuid(),
@@ -630,12 +645,12 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
     });
     const validated = schema.parse(params);
 
-    const event = await getEvent(validated.event_id);
+    const event = await getEvent(supabase, validated.event_id);
     if (!event || event.venue_id !== context.userId) {
       throw new Error('Unauthorized');
     }
 
-    const result = await addElementToEvent({
+    const result = await addElementToEvent(supabase, {
       ...validated,
       status: 'to-do',
       contract_completed: false,
@@ -645,6 +660,7 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
   },
 
   async update_event_element_status(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       event_element_id: z.string().uuid(),
       new_status: z.enum(['to-do', 'in_progress', 'completed', 'needs_attention']),
@@ -663,6 +679,7 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
     }
 
     const updated = await changeEventElementStatus(
+      supabase,
       validated.event_element_id,
       validated.new_status,
       context.userId,
@@ -673,6 +690,7 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
   },
 
   async update_event_element(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       event_element_id: z.string().uuid(),
       customization: z.string().optional(),
@@ -694,11 +712,12 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
     }
 
     const { event_element_id, ...updates } = validated;
-    const updated = await updateEventElement(event_element_id, updates);
+    const updated = await updateEventElement(supabase, event_element_id, updates);
     return updated;
   },
 
   async remove_element_from_event(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       event_element_id: z.string().uuid(),
       reason: z.string().optional(),
@@ -716,11 +735,12 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
       throw new Error('Unauthorized');
     }
 
-    await removeElementFromEvent(validated.event_element_id);
+    await removeElementFromEvent(supabase, validated.event_element_id);
     return { success: true, reason: validated.reason };
   },
 
   async create_task(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       event_id: z.string().uuid(),
       assigned_to_id: z.string().uuid(),
@@ -733,12 +753,12 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
     });
     const validated = schema.parse(params);
 
-    const event = await getEvent(validated.event_id);
+    const event = await getEvent(supabase, validated.event_id);
     if (!event || event.venue_id !== context.userId) {
       throw new Error('Unauthorized');
     }
 
-    const task = await createTask({
+    const task = await createTask(supabase, {
       ...validated,
       priority: validated.priority || 'medium',
       status: 'pending',
@@ -749,6 +769,7 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
   },
 
   async update_task(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       task_id: z.string().uuid(),
       status: z.enum(['pending', 'in_progress', 'completed', 'cancelled']).optional(),
@@ -769,11 +790,12 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
     }
 
     const { task_id, ...updates } = validated;
-    const updated = await updateTask(task_id, updates);
+    const updated = await updateTask(supabase, task_id, updates);
     return updated;
   },
 
   async complete_task(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       task_id: z.string().uuid(),
       form_response: z.any().optional(),
@@ -792,6 +814,7 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
     }
 
     const completed = await completeTask(
+      supabase,
       validated.task_id,
       validated.form_response,
       context.userId,
@@ -802,6 +825,7 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
   },
 
   async add_guest(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       event_id: z.string().uuid(),
       name: z.string(),
@@ -811,12 +835,12 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
     });
     const validated = schema.parse(params);
 
-    const event = await getEvent(validated.event_id);
+    const event = await getEvent(supabase, validated.event_id);
     if (!event || event.venue_id !== context.userId) {
       throw new Error('Unauthorized');
     }
 
-    const guest = await createGuest({
+    const guest = await createGuest(supabase, {
       ...validated,
       rsvp_status: 'undecided',
       plus_one: false,
@@ -826,6 +850,7 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
   },
 
   async update_guest(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       guest_id: z.string().uuid(),
       rsvp_status: z.enum(['yes', 'no', 'undecided']).optional(),
@@ -845,23 +870,25 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
     }
 
     const { guest_id, ...updates } = validated;
-    const updated = await updateGuest(guest_id, updates);
+    const updated = await updateGuest(supabase, guest_id, updates);
     return updated;
   },
 
   async get_guest_statistics(params, context) {
+    const supabase = createClient();
     const { event_id } = z.object({ event_id: z.string().uuid() }).parse(params);
 
-    const event = await getEvent(event_id);
+    const event = await getEvent(supabase, event_id);
     if (!event || event.venue_id !== context.userId) {
       throw new Error('Unauthorized');
     }
 
-    const stats = await getGuestStats(event_id);
+    const stats = await getGuestStats(supabase, event_id);
     return stats;
   },
 
   async send_message(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       event_id: z.string().uuid().optional(),
       recipient_id: z.string().uuid(),
@@ -872,7 +899,7 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
     const validated = schema.parse(params);
 
     if (validated.event_id) {
-      const event = await getEvent(validated.event_id);
+      const event = await getEvent(supabase, validated.event_id);
       if (!event || event.venue_id !== context.userId) {
         throw new Error('Unauthorized');
       }
@@ -882,7 +909,7 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
       ? `event-${validated.event_id}`
       : `direct-${context.userId}-${validated.recipient_id}`;
 
-    const message = await sendMessage({
+    const message = await sendMessage(supabase, {
       thread_id: threadId,
       event_id: validated.event_id,
       sender_id: context.userId,
@@ -899,9 +926,10 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
   },
 
   async mark_message_as_read(params, context) {
+    const supabase = createClient();
     const { message_id } = z.object({ message_id: z.string().uuid() }).parse(params);
 
-    await markMessageAsRead(message_id);
+    await markMessageAsRead(supabase, message_id);
     return { success: true };
   },
 };
@@ -912,9 +940,10 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
 
 export const vendorToolHandlers: Record<string, ToolHandler> = {
   async get_task_details(params, context) {
+    const supabase = createClient();
     const { task_id } = z.object({ task_id: z.string().uuid() }).parse(params);
 
-    const task = await getTask(task_id);
+    const task = await getTask(supabase, task_id);
     if (!task || task.assigned_to_id !== context.userId) {
       throw new Error('Unauthorized');
     }
@@ -923,18 +952,20 @@ export const vendorToolHandlers: Record<string, ToolHandler> = {
   },
 
   async complete_task(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       task_id: z.string().uuid(),
       form_response: z.any().optional(),
     });
     const validated = schema.parse(params);
 
-    const task = await getTask(validated.task_id);
+    const task = await getTask(supabase, validated.task_id);
     if (!task || task.assigned_to_id !== context.userId) {
       throw new Error('Unauthorized');
     }
 
     const completed = await completeTask(
+      supabase,
       validated.task_id,
       validated.form_response,
       context.userId,
@@ -945,6 +976,7 @@ export const vendorToolHandlers: Record<string, ToolHandler> = {
   },
 
   async send_message_to_venue(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       thread_id: z.string(),
       content: z.string(),
@@ -967,7 +999,7 @@ export const vendorToolHandlers: Record<string, ToolHandler> = {
       ? firstMessage.sender_id
       : firstMessage.recipient_id;
 
-    const message = await sendMessage({
+    const message = await sendMessage(supabase, {
       thread_id: validated.thread_id,
       sender_id: context.userId,
       sender_type: 'vendor',
@@ -983,9 +1015,10 @@ export const vendorToolHandlers: Record<string, ToolHandler> = {
   },
 
   async mark_message_as_read(params, context) {
+    const supabase = createClient();
     const { message_id } = z.object({ message_id: z.string().uuid() }).parse(params);
 
-    await markMessageAsRead(message_id);
+    await markMessageAsRead(supabase, message_id);
     return { success: true };
   },
 };

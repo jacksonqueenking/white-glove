@@ -19,7 +19,7 @@ vi.mock('../../db/tasks');
 vi.mock('../../db/guests');
 vi.mock('../../db/messages');
 vi.mock('../../db/elements');
-vi.mock('../../db/supabaseClient');
+vi.mock('../../supabase/client');
 
 import { getEvent, listEvents } from '../../db/events';
 import { getClient } from '../../db/clients';
@@ -28,7 +28,33 @@ import { listEventElements } from '../../db/event_elements';
 import { listTasks } from '../../db/tasks';
 import { listGuests } from '../../db/guests';
 import { getVenueElements } from '../../db/elements';
-import { supabase } from '../../db/supabaseClient';
+import { createClient } from '../../supabase/client';
+
+// Mock createClient to return a supabase client mock
+const mockSupabase = {
+  from: vi.fn(() => ({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        single: vi.fn(),
+        order: vi.fn(() => ({
+          limit: vi.fn(),
+        })),
+      })),
+      or: vi.fn(() => ({
+        order: vi.fn(() => ({
+          limit: vi.fn(),
+        })),
+      })),
+      in: vi.fn(() => ({
+        order: vi.fn(() => ({
+          limit: vi.fn(),
+        })),
+      })),
+    })),
+  })),
+};
+
+vi.mocked(createClient).mockReturnValue(mockSupabase as any);
 
 describe('buildClientContext', () => {
   const mockClientId = 'client-123';
@@ -77,7 +103,7 @@ describe('buildClientContext', () => {
     vi.mocked(getVenueElements).mockResolvedValue([]);
 
     // Mock supabase queries
-    vi.mocked(supabase.from).mockReturnValue({
+    vi.mocked(mockSupabase.from).mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
@@ -154,7 +180,7 @@ describe('buildVenueGeneralContext', () => {
     vi.mocked(listTasks).mockResolvedValue([]);
     vi.mocked(getVenueElements).mockResolvedValue([]);
 
-    vi.mocked(supabase.from).mockReturnValue({
+    vi.mocked(mockSupabase.from).mockReturnValue({
       select: vi.fn().mockReturnThis(),
       or: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -220,7 +246,7 @@ describe('buildVenueEventContext', () => {
     vi.mocked(listGuests).mockResolvedValue([]);
     vi.mocked(getVenueElements).mockResolvedValue([]);
 
-    vi.mocked(supabase.from).mockReturnValue({
+    vi.mocked(mockSupabase.from).mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
@@ -266,7 +292,7 @@ describe('buildVendorContext', () => {
   });
 
   it('should build complete vendor context', async () => {
-    vi.mocked(supabase.from).mockReturnValue({
+    vi.mocked(mockSupabase.from).mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       or: vi.fn().mockReturnThis(),

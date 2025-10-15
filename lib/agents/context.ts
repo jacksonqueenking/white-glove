@@ -13,15 +13,17 @@ import { listTasks } from '../db/tasks';
 import { listGuests } from '../db/guests';
 import { getUserMessageThreads, listMessagesInThread } from '../db/messages';
 import { getVenueElements } from '../db/elements';
-import { supabase } from '../db/supabaseClient';
+import { createClient } from '../supabase/client';
 import type { ActionHistory } from '../schemas';
 
 /**
  * Build complete context for Client AI Assistant
  */
 export async function buildClientContext(clientId: string, eventId: string) {
+  const supabase = createClient();
+
   // Fetch event
-  const event = await getEvent(eventId);
+  const event = await getEvent(supabase, eventId);
   if (!event) throw new Error('Event not found');
 
   // Verify client owns this event
@@ -30,15 +32,15 @@ export async function buildClientContext(clientId: string, eventId: string) {
   }
 
   // Fetch client
-  const client = await getClient(clientId);
+  const client = await getClient(supabase, clientId);
   if (!client) throw new Error('Client not found');
 
   // Fetch venue
-  const venue = await getVenue(event.venue_id);
+  const venue = await getVenue(supabase, event.venue_id);
   if (!venue) throw new Error('Venue not found');
 
   // Fetch event elements with element and vendor details
-  const eventElements = await listEventElements(event.event_id);
+  const eventElements = await listEventElements(supabase, event.event_id);
 
   // Enrich with full element and vendor info
   const enrichedElements = await Promise.all(
@@ -58,10 +60,10 @@ export async function buildClientContext(clientId: string, eventId: string) {
   );
 
   // Fetch tasks for this event
-  const tasks = await listTasks({ event_id: eventId });
+  const tasks = await listTasks(supabase, { event_id: eventId });
 
   // Fetch guests
-  const guests = await listGuests(eventId);
+  const guests = await listGuests(supabase, eventId);
 
   // Fetch action history
   const { data: actionHistory } = await supabase
@@ -72,7 +74,7 @@ export async function buildClientContext(clientId: string, eventId: string) {
     .limit(30);
 
   // Fetch available offerings at the venue
-  const availableOfferings = await getVenueElements(event.venue_id);
+  const availableOfferings = await getVenueElements(supabase, event.venue_id);
 
   // Simplify offerings structure
   const offerings = availableOfferings.map((item: any) => ({
@@ -113,15 +115,17 @@ export async function buildClientContext(clientId: string, eventId: string) {
  * Build complete context for Venue General AI Assistant
  */
 export async function buildVenueGeneralContext(venueId: string) {
+  const supabase = createClient();
+
   // Fetch venue
-  const venue = await getVenue(venueId);
+  const venue = await getVenue(supabase, venueId);
   if (!venue) throw new Error('Venue not found');
 
   // Fetch all events for this venue
-  const allEvents = await listEvents({ venue_id: venueId });
+  const allEvents = await listEvents(supabase, { venue_id: venueId });
 
   // Fetch all tasks for all events at this venue
-  const allTasks = await listTasks({ venue_id: venueId } as any);
+  const allTasks = await listTasks(supabase, { venue_id: venueId } as any);
 
   // Fetch all messages where venue is sender or recipient
   const { data: allMessages } = await supabase
@@ -140,7 +144,7 @@ export async function buildVenueGeneralContext(venueId: string) {
     .limit(50);
 
   // Fetch all offerings at this venue
-  const allOfferings = await getVenueElements(venueId);
+  const allOfferings = await getVenueElements(supabase, venueId);
 
   const offerings = allOfferings.map((item: any) => ({
     element_id: item.element_id,
@@ -186,8 +190,10 @@ export async function buildVenueGeneralContext(venueId: string) {
  * Build complete context for Venue Event AI Assistant
  */
 export async function buildVenueEventContext(venueId: string, eventId: string) {
+  const supabase = createClient();
+
   // Fetch event
-  const event = await getEvent(eventId);
+  const event = await getEvent(supabase, eventId);
   if (!event) throw new Error('Event not found');
 
   // Verify event belongs to this venue
@@ -196,14 +202,14 @@ export async function buildVenueEventContext(venueId: string, eventId: string) {
   }
 
   // Fetch venue
-  const venue = await getVenue(venueId);
+  const venue = await getVenue(supabase, venueId);
   if (!venue) throw new Error('Venue not found');
 
   // Fetch client
-  const client = event.client_id ? await getClient(event.client_id) : null;
+  const client = event.client_id ? await getClient(supabase, event.client_id) : null;
 
   // Fetch event elements with details
-  const eventElements = await listEventElements(eventId);
+  const eventElements = await listEventElements(supabase, eventId);
 
   const enrichedElements = await Promise.all(
     eventElements.map(async (ee: any) => {
@@ -222,10 +228,10 @@ export async function buildVenueEventContext(venueId: string, eventId: string) {
   );
 
   // Fetch tasks
-  const tasks = await listTasks({ event_id: eventId });
+  const tasks = await listTasks(supabase, { event_id: eventId });
 
   // Fetch guests
-  const guests = await listGuests(eventId);
+  const guests = await listGuests(supabase, eventId);
 
   // Fetch messages for this event
   const { data: messages } = await supabase
@@ -243,7 +249,7 @@ export async function buildVenueEventContext(venueId: string, eventId: string) {
     .limit(30);
 
   // Fetch available offerings
-  const availableOfferings = await getVenueElements(venueId);
+  const availableOfferings = await getVenueElements(supabase, venueId);
 
   const offerings = availableOfferings.map((item: any) => ({
     element_id: item.element_id,
@@ -282,6 +288,8 @@ export async function buildVenueEventContext(venueId: string, eventId: string) {
  * Build context for Vendor Interface
  */
 export async function buildVendorContext(vendorId: string) {
+  const supabase = createClient();
+
   // Fetch vendor
   const { data: vendor } = await supabase
     .from('vendors')
@@ -300,11 +308,11 @@ export async function buildVendorContext(vendorId: string) {
   const eventIds = Array.from(new Set(vendorElements?.map((ve: any) => ve.event_id) || []));
 
   const vendorEvents = eventIds.length > 0
-    ? await Promise.all(eventIds.map(id => getEvent(id)))
+    ? await Promise.all(eventIds.map(id => getEvent(supabase, id)))
     : [];
 
   // Fetch tasks assigned to this vendor
-  const vendorTasks = await listTasks({
+  const vendorTasks = await listTasks(supabase, {
     assigned_to_id: vendorId,
     assigned_to_type: 'vendor',
   });

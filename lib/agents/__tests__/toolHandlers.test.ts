@@ -26,7 +26,7 @@ vi.mock('../../db/guests');
 vi.mock('../../db/tasks');
 vi.mock('../../db/messages');
 vi.mock('../../db/events');
-vi.mock('../../db/supabaseClient');
+vi.mock('../../supabase/client');
 
 import { getElement, isElementAvailable } from '../../db/elements';
 import { addElementToEvent } from '../../db/event_elements';
@@ -34,7 +34,20 @@ import { createGuest, updateGuest, deleteGuest } from '../../db/guests';
 import { getTask, createTask, completeTask } from '../../db/tasks';
 import { sendMessage } from '../../db/messages';
 import { getEvent } from '../../db/events';
-import { supabase } from '../../db/supabaseClient';
+import { createClient } from '../../supabase/client';
+
+// Mock createClient to return a supabase client mock
+const mockSupabase = {
+  from: vi.fn(() => ({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        single: vi.fn(),
+      })),
+    })),
+  })),
+};
+
+vi.mocked(createClient).mockReturnValue(mockSupabase as any);
 
 describe('Client Tool Handlers', () => {
   const mockContext = {
