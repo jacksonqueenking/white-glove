@@ -7,6 +7,7 @@ import {
   createClientRecord,
 } from '@/lib/auth/helpers';
 import { clientConfirmationSchema } from '@/lib/auth/validation';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 /**
  * POST /api/onboarding/client
@@ -58,7 +59,58 @@ export async function POST(request: Request) {
     let userId: string;
 
     if (authMethod === 'magic') {
-      // Send magic link
+      // For magic link, create the account first, then send the link to login
+      // Use service client to ensure user is created properly
+      const serviceSupabase = createServiceClient();
+
+      // Sign up the user with a random password (they won't need it)
+      const { data: signupData, error: signupError } = await serviceSupabase.auth.admin.createUser({
+        email: invitee_email,
+        password: crypto.randomUUID(), // Random password for magic-link-only users
+        email_confirm: true, // Auto-confirm email
+        user_metadata: {
+          user_type: 'client',
+          name,
+          phone,
+          event_id,
+          onboarding_completed: false,
+        },
+      });
+
+      if (signupError || !signupData.user) {
+        return NextResponse.json(
+          { error: signupError?.message || 'Failed to create account' },
+          { status: 400 }
+        );
+      }
+
+      userId = signupData.user.id;
+
+      // Create client record
+      const clientResult = await createClientRecord(
+        userId,
+        invitee_email,
+        name,
+        phone
+      );
+
+      if (!clientResult.success) {
+        return NextResponse.json(
+          { error: clientResult.error || 'Failed to create client profile' },
+          { status: 500 }
+        );
+      }
+
+      // Update the event with the client_id and change status to confirmed
+      await serviceSupabase
+        .from('events')
+        .update({ client_id: userId, status: 'confirmed' })
+        .eq('event_id', event_id);
+
+      // Mark invitation as used
+      await markInvitationUsed(token);
+
+      // Now send magic link for them to login
       const result = await sendMagicLink(
         invitee_email,
         'client',
@@ -72,12 +124,10 @@ export async function POST(request: Request) {
         );
       }
 
-      // For magic link, we'll create the user when they click the link
-      // For now, just mark invitation as pending and send the link
       return NextResponse.json({
         success: true,
         method: 'magic',
-        message: 'Check your email for the magic link to complete registration',
+        message: 'Account created! Check your email for the magic link to sign in.',
       });
     } else {
       // Password signup
@@ -119,6 +169,13 @@ export async function POST(request: Request) {
           { status: 500 }
         );
       }
+
+      // Update the event with the client_id and change status to confirmed
+      const serviceSupabase = createServiceClient();
+      await serviceSupabase
+        .from('events')
+        .update({ client_id: userId, status: 'confirmed' })
+        .eq('event_id', event_id);
 
       // Mark invitation as used
       await markInvitationUsed(token);

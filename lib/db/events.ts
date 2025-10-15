@@ -5,7 +5,8 @@
  * All functions are designed to be callable by LLM agents as tools.
  */
 
-import { supabase, supabaseAdmin } from './supabaseClient';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../supabase/database.types.gen';
 import {
   EventSchema,
   CreateEventSchema,
@@ -19,14 +20,18 @@ import {
 /**
  * Get an event by ID
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event to retrieve
  * @returns The event object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const event = await getEvent('123e4567-e89b-12d3-a456-426614174000');
+ * const event = await getEvent(supabase, '123e4567-e89b-12d3-a456-426614174000');
  */
-export async function getEvent(event_id: string): Promise<Event | null> {
+export async function getEvent(
+  supabase: SupabaseClient<Database>,
+  event_id: string
+): Promise<Event | null> {
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -45,6 +50,7 @@ export async function getEvent(event_id: string): Promise<Event | null> {
 /**
  * List events with optional filtering
  *
+ * @param supabase - Supabase client instance
  * @param params - Filter parameters
  * @param params.client_id - Filter by client ID
  * @param params.venue_id - Filter by venue ID
@@ -55,15 +61,18 @@ export async function getEvent(event_id: string): Promise<Event | null> {
  * @throws {Error} If the database query fails
  *
  * @example
- * const events = await listEvents({ venue_id: 'abc123', status: 'confirmed' });
+ * const events = await listEvents(supabase, { venue_id: 'abc123', status: 'confirmed' });
  */
-export async function listEvents(params?: {
-  client_id?: string;
-  venue_id?: string;
-  status?: EventStatus;
-  limit?: number;
-  offset?: number;
-}): Promise<Event[]> {
+export async function listEvents(
+  supabase: SupabaseClient<Database>,
+  params?: {
+    client_id?: string;
+    venue_id?: string;
+    status?: EventStatus;
+    limit?: number;
+    offset?: number;
+  }
+): Promise<Event[]> {
   let query = supabase
     .from('events')
     .select('*')
@@ -96,25 +105,29 @@ export async function listEvents(params?: {
     throw new Error(`Failed to list events: ${error.message}`);
   }
 
-  return data?.map((event) => EventSchema.parse(event)) || [];
+  return data?.map((event: any) => EventSchema.parse(event)) || [];
 }
 
 /**
  * Create a new event
  *
+ * @param supabase - Supabase client instance
  * @param event - The event data to create
  * @returns The created event object
  * @throws {Error} If validation fails or database insert fails
  *
  * @example
- * const newEvent = await createEvent({
+ * const newEvent = await createEvent(supabase, {
  *   name: 'Birthday Party',
  *   date: '2025-06-15T14:00:00Z',
  *   venue_id: 'venue-uuid',
  *   status: 'inquiry'
  * });
  */
-export async function createEvent(event: CreateEvent): Promise<Event> {
+export async function createEvent(
+  supabase: SupabaseClient<Database>,
+  event: CreateEvent
+): Promise<Event> {
   // Validate input
   const validated = CreateEventSchema.parse(event);
 
@@ -134,18 +147,20 @@ export async function createEvent(event: CreateEvent): Promise<Event> {
 /**
  * Update an existing event
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event to update
  * @param updates - The fields to update
  * @returns The updated event object
  * @throws {Error} If validation fails or database update fails
  *
  * @example
- * const updated = await updateEvent('event-uuid', {
+ * const updated = await updateEvent(supabase, 'event-uuid', {
  *   status: 'confirmed',
  *   rsvp_deadline: '2025-06-01'
  * });
  */
 export async function updateEvent(
+  supabase: SupabaseClient<Database>,
   event_id: string,
   updates: UpdateEvent
 ): Promise<Event> {
@@ -170,14 +185,18 @@ export async function updateEvent(
 /**
  * Soft delete an event (sets deleted_at timestamp)
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event to delete
  * @returns True if successful
  * @throws {Error} If database update fails
  *
  * @example
- * await deleteEvent('event-uuid');
+ * await deleteEvent(supabase, 'event-uuid');
  */
-export async function deleteEvent(event_id: string): Promise<boolean> {
+export async function deleteEvent(
+  supabase: SupabaseClient<Database>,
+  event_id: string
+): Promise<boolean> {
   const { error } = await supabase
     .from('events')
     .update({ deleted_at: new Date().toISOString() })
@@ -195,7 +214,9 @@ export async function deleteEvent(event_id: string): Promise<boolean> {
  *
  * This is a convenience function for the common operation of updating event status.
  * It also logs the status change to action_history.
+ * Note: Requires admin privileges to write to action_history.
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event
  * @param new_status - The new status for the event
  * @param user_id - The ID of the user making the change
@@ -204,19 +225,20 @@ export async function deleteEvent(event_id: string): Promise<boolean> {
  * @throws {Error} If status update fails
  *
  * @example
- * await changeEventStatus('event-uuid', 'confirmed', 'user-uuid', 'venue');
+ * await changeEventStatus(supabase, 'event-uuid', 'confirmed', 'user-uuid', 'venue');
  */
 export async function changeEventStatus(
+  supabase: SupabaseClient<Database>,
   event_id: string,
   new_status: EventStatus,
   user_id: string,
   user_type: 'client' | 'venue' | 'vendor' | 'system'
 ): Promise<Event> {
   // Update the event
-  const updatedEvent = await updateEvent(event_id, { status: new_status });
+  const updatedEvent = await updateEvent(supabase, event_id, { status: new_status });
 
   // Log the action (using admin client to bypass RLS)
-  await supabaseAdmin.from('action_history').insert({
+  await supabase.from('action_history').insert({
     event_id,
     user_id,
     user_type,
@@ -231,6 +253,7 @@ export async function changeEventStatus(
 /**
  * Get events happening within a date range
  *
+ * @param supabase - Supabase client instance
  * @param start_date - Start of date range (ISO 8601 format)
  * @param end_date - End of date range (ISO 8601 format)
  * @param venue_id - Optional: filter by specific venue
@@ -238,9 +261,10 @@ export async function changeEventStatus(
  * @throws {Error} If database query fails
  *
  * @example
- * const juneEvents = await getEventsByDateRange('2025-06-01', '2025-06-30', 'venue-uuid');
+ * const juneEvents = await getEventsByDateRange(supabase, '2025-06-01', '2025-06-30', 'venue-uuid');
  */
 export async function getEventsByDateRange(
+  supabase: SupabaseClient<Database>,
   start_date: string,
   end_date: string,
   venue_id?: string
@@ -263,25 +287,27 @@ export async function getEventsByDateRange(
     throw new Error(`Failed to fetch events by date range: ${error.message}`);
   }
 
-  return data?.map((event) => EventSchema.parse(event)) || [];
+  return data?.map((event: any) => EventSchema.parse(event)) || [];
 }
 
 /**
  * Add spaces to an event
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event
  * @param space_ids - Array of space UUIDs to add to the event
  * @returns True if successful
  * @throws {Error} If database insert fails
  *
  * @example
- * await addSpacesToEvent('event-uuid', ['space-1-uuid', 'space-2-uuid']);
+ * await addSpacesToEvent(supabase, 'event-uuid', ['space-1-uuid', 'space-2-uuid']);
  */
 export async function addSpacesToEvent(
+  supabase: SupabaseClient<Database>,
   event_id: string,
   space_ids: string[]
 ): Promise<boolean> {
-  const inserts = space_ids.map((space_id) => ({
+  const inserts = space_ids.map((space_id: any) => ({
     event_id,
     space_id,
   }));
@@ -298,15 +324,17 @@ export async function addSpacesToEvent(
 /**
  * Remove a space from an event
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event
  * @param space_id - The UUID of the space to remove
  * @returns True if successful
  * @throws {Error} If database delete fails
  *
  * @example
- * await removeSpaceFromEvent('event-uuid', 'space-uuid');
+ * await removeSpaceFromEvent(supabase, 'event-uuid', 'space-uuid');
  */
 export async function removeSpaceFromEvent(
+  supabase: SupabaseClient<Database>,
   event_id: string,
   space_id: string
 ): Promise<boolean> {
@@ -326,14 +354,18 @@ export async function removeSpaceFromEvent(
 /**
  * Get all spaces for an event
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event
  * @returns Array of space IDs
  * @throws {Error} If database query fails
  *
  * @example
- * const spaceIds = await getEventSpaces('event-uuid');
+ * const spaceIds = await getEventSpaces(supabase, 'event-uuid');
  */
-export async function getEventSpaces(event_id: string): Promise<string[]> {
+export async function getEventSpaces(
+  supabase: SupabaseClient<Database>,
+  event_id: string
+): Promise<string[]> {
   const { data, error } = await supabase
     .from('event_spaces')
     .select('space_id')
@@ -343,5 +375,5 @@ export async function getEventSpaces(event_id: string): Promise<string[]> {
     throw new Error(`Failed to get event spaces: ${error.message}`);
   }
 
-  return data?.map((row) => row.space_id) || [];
+  return data?.map((row: any) => row.space_id) || [];
 }

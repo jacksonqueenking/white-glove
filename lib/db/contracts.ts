@@ -5,19 +5,21 @@
  * All functions are designed to be callable by LLM agents as tools.
  */
 
-import { supabase, supabaseAdmin } from './supabaseClient';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../supabase/database.types.gen';
 
 /**
  * Get a contract by ID
  *
+ * @param supabase - Supabase client instance
  * @param contract_id - The UUID of the contract to retrieve
  * @returns The contract object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const contract = await getContract('contract-uuid');
+ * const contract = await getContract(supabase, 'contract-uuid');
  */
-export async function getContract(contract_id: string): Promise<any | null> {
+export async function getContract(supabase: SupabaseClient<Database>, contract_id: string): Promise<any | null> {
   const { data, error } = await supabase
     .from('contracts')
     .select('*')
@@ -35,14 +37,15 @@ export async function getContract(contract_id: string): Promise<any | null> {
 /**
  * Get contract for an event
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event
  * @returns The contract object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const contract = await getEventContract('event-uuid');
+ * const contract = await getEventContract(supabase, 'event-uuid');
  */
-export async function getEventContract(event_id: string): Promise<any | null> {
+export async function getEventContract(supabase: SupabaseClient<Database>, event_id: string): Promise<any | null> {
   const { data, error } = await supabase
     .from('contracts')
     .select('*')
@@ -62,12 +65,13 @@ export async function getEventContract(event_id: string): Promise<any | null> {
 /**
  * Create a contract
  *
+ * @param supabase - Supabase client instance
  * @param contract - The contract data to create
  * @returns The created contract object
  * @throws {Error} If database insert fails
  *
  * @example
- * const contract = await createContract({
+ * const contract = await createContract(supabase, {
  *   event_id: 'event-uuid',
  *   total_amount: 15000.00,
  *   currency: 'USD',
@@ -88,7 +92,7 @@ export async function getEventContract(event_id: string): Promise<any | null> {
  *   status: 'draft'
  * });
  */
-export async function createContract(contract: {
+export async function createContract(supabase: SupabaseClient<Database>, contract: {
   event_id: string;
   total_amount: number;
   currency?: string;
@@ -119,17 +123,19 @@ export async function createContract(contract: {
  *
  * Creates a new version of the contract with updated information.
  *
+ * @param supabase - Supabase client instance
  * @param contract_id - The UUID of the contract to update
  * @param updates - The fields to update
  * @returns The updated contract object
  * @throws {Error} If update fails
  *
  * @example
- * const updated = await updateContract('contract-uuid', {
+ * const updated = await updateContract(supabase, 'contract-uuid', {
  *   status: 'signed'
  * });
  */
 export async function updateContract(
+  supabase: SupabaseClient<Database>,
   contract_id: string,
   updates: {
     total_amount?: number;
@@ -157,6 +163,7 @@ export async function updateContract(
  *
  * Updates the payment schedule to mark a payment as paid.
  *
+ * @param supabase - Supabase client instance
  * @param contract_id - The UUID of the contract
  * @param payment_index - Index of the payment in the schedule (0-based)
  * @param stripe_payment_intent_id - The Stripe payment intent ID
@@ -164,14 +171,15 @@ export async function updateContract(
  * @throws {Error} If update fails
  *
  * @example
- * await recordContractPayment('contract-uuid', 0, 'pi_123456');
+ * await recordContractPayment(supabase, 'contract-uuid', 0, 'pi_123456');
  */
 export async function recordContractPayment(
+  supabase: SupabaseClient<Database>,
   contract_id: string,
   payment_index: number,
   stripe_payment_intent_id: string
 ): Promise<any> {
-  const contract = await getContract(contract_id);
+  const contract = await getContract(supabase, contract_id);
   if (!contract) {
     throw new Error('Contract not found');
   }
@@ -193,10 +201,10 @@ export async function recordContractPayment(
   const stripeIds = [...(contract.stripe_payment_intent_ids || []), stripe_payment_intent_id];
 
   // Check if all payments are paid
-  const allPaid = paymentSchedule.every((p) => p.paid);
+  const allPaid = paymentSchedule.every((p: any) => p.paid);
   const newStatus = allPaid ? 'paid' : 'partially_paid';
 
-  return updateContract(contract_id, {
+  return updateContract(supabase, contract_id, {
     payment_schedule: paymentSchedule,
     stripe_payment_intent_ids: stripeIds,
     status: newStatus,
@@ -208,15 +216,16 @@ export async function recordContractPayment(
  *
  * Returns information about paid and outstanding payments.
  *
+ * @param supabase - Supabase client instance
  * @param contract_id - The UUID of the contract
  * @returns Object with payment status information
  * @throws {Error} If contract not found
  *
  * @example
- * const status = await getContractPaymentStatus('contract-uuid');
+ * const status = await getContractPaymentStatus(supabase, 'contract-uuid');
  * // { total: 15000, paid: 7500, outstanding: 7500, payments_due: [...] }
  */
-export async function getContractPaymentStatus(contract_id: string): Promise<{
+export async function getContractPaymentStatus(supabase: SupabaseClient<Database>, contract_id: string): Promise<{
   total: number;
   paid: number;
   outstanding: number;
@@ -224,7 +233,7 @@ export async function getContractPaymentStatus(contract_id: string): Promise<{
   payments_due: any[];
   overdue_payments: any[];
 }> {
-  const contract = await getContract(contract_id);
+  const contract = await getContract(supabase, contract_id);
   if (!contract) {
     throw new Error('Contract not found');
   }
@@ -262,15 +271,16 @@ export async function getContractPaymentStatus(contract_id: string): Promise<{
  *
  * Marks the contract as signed and updates status.
  *
+ * @param supabase - Supabase client instance
  * @param contract_id - The UUID of the contract
  * @returns The updated contract
  * @throws {Error} If update fails
  *
  * @example
- * await signContract('contract-uuid');
+ * await signContract(supabase, 'contract-uuid');
  */
-export async function signContract(contract_id: string): Promise<any> {
-  return updateContract(contract_id, { status: 'signed' });
+export async function signContract(supabase: SupabaseClient<Database>, contract_id: string): Promise<any> {
+  return updateContract(supabase, contract_id, { status: 'signed' });
 }
 
 /**
@@ -329,14 +339,15 @@ export function generatePaymentSchedule(
  *
  * Returns contracts with overdue payments or requiring signatures.
  *
+ * @param supabase - Supabase client instance
  * @param venue_id - Optional: filter by venue
  * @returns Array of contracts needing attention
  * @throws {Error} If database query fails
  *
  * @example
- * const needsAttention = await getContractsRequiringAttention('venue-uuid');
+ * const needsAttention = await getContractsRequiringAttention(supabase, 'venue-uuid');
  */
-export async function getContractsRequiringAttention(venue_id?: string): Promise<any[]> {
+export async function getContractsRequiringAttention(supabase: SupabaseClient<Database>, venue_id?: string): Promise<any[]> {
   let query = supabase
     .from('contracts')
     .select('*, events!inner(*)')

@@ -5,7 +5,8 @@
  * All functions are designed to be callable by LLM agents as tools.
  */
 
-import { supabase, supabaseAdmin } from './supabaseClient';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../supabase/database.types.gen';
 import {
   ClientSchema,
   CreateClientSchema,
@@ -18,14 +19,18 @@ import {
 /**
  * Get a client by ID
  *
+ * @param supabase - Supabase client instance
  * @param client_id - The UUID of the client to retrieve
  * @returns The client object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const client = await getClient('client-uuid');
+ * const client = await getClient(supabase, 'client-uuid');
  */
-export async function getClient(client_id: string): Promise<Client | null> {
+export async function getClient(
+  supabase: SupabaseClient<Database>,
+  client_id: string
+): Promise<Client | null> {
   const { data, error } = await supabase
     .from('clients')
     .select('*')
@@ -46,14 +51,18 @@ export async function getClient(client_id: string): Promise<Client | null> {
  *
  * Useful for checking if a client already exists before creating.
  *
+ * @param supabase - Supabase client instance
  * @param email - The email address to search for
  * @returns The client object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const client = await getClientByEmail('client@example.com');
+ * const client = await getClientByEmail(supabase, 'client@example.com');
  */
-export async function getClientByEmail(email: string): Promise<Client | null> {
+export async function getClientByEmail(
+  supabase: SupabaseClient<Database>,
+  email: string
+): Promise<Client | null> {
   const { data, error } = await supabase
     .from('clients')
     .select('*')
@@ -74,6 +83,7 @@ export async function getClientByEmail(email: string): Promise<Client | null> {
  *
  * Note: This should typically only be accessible to admin users.
  *
+ * @param supabase - Supabase client instance
  * @param params - Filter parameters
  * @param params.limit - Maximum number of clients to return (default: 50)
  * @param params.offset - Number of clients to skip (for pagination)
@@ -81,12 +91,15 @@ export async function getClientByEmail(email: string): Promise<Client | null> {
  * @throws {Error} If the database query fails
  *
  * @example
- * const clients = await listClients({ limit: 20 });
+ * const clients = await listClients(supabase, { limit: 20 });
  */
-export async function listClients(params?: {
-  limit?: number;
-  offset?: number;
-}): Promise<Client[]> {
+export async function listClients(
+  supabase: SupabaseClient<Database>,
+  params?: {
+    limit?: number;
+    offset?: number;
+  }
+): Promise<Client[]> {
   let query = supabase
     .from('clients')
     .select('*')
@@ -107,7 +120,7 @@ export async function listClients(params?: {
     throw new Error(`Failed to list clients: ${error.message}`);
   }
 
-  return data?.map((client) => ClientSchema.parse(client)) || [];
+  return data?.map((client: any) => ClientSchema.parse(client)) || [];
 }
 
 /**
@@ -116,12 +129,15 @@ export async function listClients(params?: {
  * This should be called after a user signs up via Supabase Auth.
  * The client_id should match the auth.users.id.
  *
+ * Note: Requires admin privileges.
+ *
+ * @param supabase - Supabase client instance
  * @param client - The client data to create
  * @returns The created client object
  * @throws {Error} If validation fails or database insert fails
  *
  * @example
- * const newClient = await createClient({
+ * const newClient = await createClient(supabase, {
  *   client_id: authUser.id,
  *   name: 'John Doe',
  *   email: 'john@example.com',
@@ -135,11 +151,14 @@ export async function listClients(params?: {
  *   }
  * });
  */
-export async function createClient(client: CreateClient): Promise<Client> {
+export async function createClient(
+  supabase: SupabaseClient<Database>,
+  client: CreateClient
+): Promise<Client> {
   // Validate input
   const validated = CreateClientSchema.parse(client);
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from('clients')
     .insert(validated as any)
     .select()
@@ -155,13 +174,14 @@ export async function createClient(client: CreateClient): Promise<Client> {
 /**
  * Update an existing client
  *
+ * @param supabase - Supabase client instance
  * @param client_id - The UUID of the client to update
  * @param updates - The fields to update
  * @returns The updated client object
  * @throws {Error} If validation fails or database update fails
  *
  * @example
- * const updated = await updateClient('client-uuid', {
+ * const updated = await updateClient(supabase, 'client-uuid', {
  *   phone: '555-5678',
  *   preferences: {
  *     food: 'Vegetarian preferred',
@@ -170,6 +190,7 @@ export async function createClient(client: CreateClient): Promise<Client> {
  * });
  */
 export async function updateClient(
+  supabase: SupabaseClient<Database>,
   client_id: string,
   updates: UpdateClient
 ): Promise<Client> {
@@ -194,14 +215,18 @@ export async function updateClient(
 /**
  * Soft delete a client (sets deleted_at timestamp)
  *
+ * @param supabase - Supabase client instance
  * @param client_id - The UUID of the client to delete
  * @returns True if successful
  * @throws {Error} If database update fails
  *
  * @example
- * await deleteClient('client-uuid');
+ * await deleteClient(supabase, 'client-uuid');
  */
-export async function deleteClient(client_id: string): Promise<boolean> {
+export async function deleteClient(
+  supabase: SupabaseClient<Database>,
+  client_id: string
+): Promise<boolean> {
   const { error } = await supabase
     .from('clients')
     .update({ deleted_at: new Date().toISOString() })
@@ -219,13 +244,14 @@ export async function deleteClient(client_id: string): Promise<boolean> {
  *
  * A convenience function for updating just the preferences field.
  *
+ * @param supabase - Supabase client instance
  * @param client_id - The UUID of the client
  * @param preferences - The preferences to update (partial update supported)
  * @returns The updated client object
  * @throws {Error} If update fails
  *
  * @example
- * await updateClientPreferences('client-uuid', {
+ * await updateClientPreferences(supabase, 'client-uuid', {
  *   food: 'No red meat',
  *   people: [
  *     { name: 'Wedding Planner', role: 'Planner', email: 'planner@example.com' }
@@ -233,6 +259,7 @@ export async function deleteClient(client_id: string): Promise<boolean> {
  * });
  */
 export async function updateClientPreferences(
+  supabase: SupabaseClient<Database>,
   client_id: string,
   preferences: Partial<{
     people: Array<{ name: string; role: string; email?: string; phone?: string; notes?: string }>;
@@ -241,7 +268,7 @@ export async function updateClientPreferences(
   }>
 ): Promise<Client> {
   // Get current client to merge preferences
-  const currentClient = await getClient(client_id);
+  const currentClient = await getClient(supabase, client_id);
   if (!currentClient) {
     throw new Error('Client not found');
   }
@@ -252,7 +279,7 @@ export async function updateClientPreferences(
     ...preferences,
   };
 
-  return updateClient(client_id, { preferences: mergedPreferences });
+  return updateClient(supabase, client_id, { preferences: mergedPreferences });
 }
 
 /**
@@ -260,32 +287,38 @@ export async function updateClientPreferences(
  *
  * Called after a client's payment method is set up in Stripe.
  *
+ * @param supabase - Supabase client instance
  * @param client_id - The UUID of the client
  * @param stripe_customer_id - The Stripe customer ID
  * @returns The updated client object
  * @throws {Error} If update fails
  *
  * @example
- * await updateClientStripeId('client-uuid', 'cus_1234567890');
+ * await updateClientStripeId(supabase, 'client-uuid', 'cus_1234567890');
  */
 export async function updateClientStripeId(
+  supabase: SupabaseClient<Database>,
   client_id: string,
   stripe_customer_id: string
 ): Promise<Client> {
-  return updateClient(client_id, { credit_card_stripe_id: stripe_customer_id });
+  return updateClient(supabase, client_id, { credit_card_stripe_id: stripe_customer_id });
 }
 
 /**
  * Get total number of events for a client
  *
+ * @param supabase - Supabase client instance
  * @param client_id - The UUID of the client
  * @returns Count of events (including all statuses)
  * @throws {Error} If database query fails
  *
  * @example
- * const count = await getClientEventCount('client-uuid');
+ * const count = await getClientEventCount(supabase, 'client-uuid');
  */
-export async function getClientEventCount(client_id: string): Promise<number> {
+export async function getClientEventCount(
+  supabase: SupabaseClient<Database>,
+  client_id: string
+): Promise<number> {
   const { count, error } = await supabase
     .from('events')
     .select('*', { count: 'exact', head: true })

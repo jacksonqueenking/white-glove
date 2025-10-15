@@ -5,7 +5,8 @@
  * All functions are designed to be callable by LLM agents as tools.
  */
 
-import { supabase, supabaseAdmin } from './supabaseClient';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../supabase/database.types.gen';
 import {
   EventElementSchema,
   CreateEventElementSchema,
@@ -19,14 +20,15 @@ import {
 /**
  * Get an event element by ID
  *
+ * @param supabase - Supabase client instance
  * @param event_element_id - The UUID of the event element to retrieve
  * @returns The event element object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const eventElement = await getEventElement('event-element-uuid');
+ * const eventElement = await getEventElement(supabase, 'event-element-uuid');
  */
-export async function getEventElement(event_element_id: string): Promise<EventElement | null> {
+export async function getEventElement(supabase: SupabaseClient<Database>, event_element_id: string): Promise<EventElement | null> {
   const { data, error } = await supabase
     .from('event_elements')
     .select('*')
@@ -44,16 +46,18 @@ export async function getEventElement(event_element_id: string): Promise<EventEl
 /**
  * List event elements for an event
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event
  * @param status - Optional: filter by status
  * @returns Array of event elements with element details
  * @throws {Error} If the database query fails
  *
  * @example
- * const allElements = await listEventElements('event-uuid');
- * const needsAttention = await listEventElements('event-uuid', 'needs_attention');
+ * const allElements = await listEventElements(supabase, 'event-uuid');
+ * const needsAttention = await listEventElements(supabase, 'event-uuid', 'needs_attention');
  */
 export async function listEventElements(
+  supabase: SupabaseClient<Database>,
   event_id: string,
   status?: ElementStatus
 ): Promise<any[]> {
@@ -79,13 +83,15 @@ export async function listEventElements(
  * Add an element to an event
  *
  * Creates an event_element record linking an element to an event.
+ * Note: Requires admin privileges for action_history logging.
  *
+ * @param supabase - Supabase client instance (requires admin privileges)
  * @param event_element - The event element data to create
  * @returns The created event element object
  * @throws {Error} If validation fails or database insert fails
  *
  * @example
- * const eventElement = await addElementToEvent({
+ * const eventElement = await addElementToEvent(supabaseAdmin, {
  *   event_id: 'event-uuid',
  *   element_id: 'element-uuid',
  *   amount: 2500.00,
@@ -94,6 +100,7 @@ export async function listEventElements(
  * });
  */
 export async function addElementToEvent(
+  supabase: SupabaseClient<Database>,
   event_element: CreateEventElement
 ): Promise<EventElement> {
   // Validate input
@@ -110,7 +117,7 @@ export async function addElementToEvent(
   }
 
   // Log the action
-  await supabaseAdmin.from('action_history').insert({
+  await supabase.from('action_history').insert({
     event_id: validated.event_id,
     action_type: 'element_added',
     description: `Element added to event`,
@@ -123,18 +130,20 @@ export async function addElementToEvent(
 /**
  * Update an event element
  *
+ * @param supabase - Supabase client instance
  * @param event_element_id - The UUID of the event element to update
  * @param updates - The fields to update
  * @returns The updated event element object
  * @throws {Error} If validation fails or database update fails
  *
  * @example
- * const updated = await updateEventElement('event-element-uuid', {
+ * const updated = await updateEventElement(supabase, 'event-element-uuid', {
  *   status: 'completed',
  *   contract_completed: true
  * });
  */
 export async function updateEventElement(
+  supabase: SupabaseClient<Database>,
   event_element_id: string,
   updates: UpdateEventElement
 ): Promise<EventElement> {
@@ -160,14 +169,15 @@ export async function updateEventElement(
  *
  * Deletes the event_element record.
  *
+ * @param supabase - Supabase client instance
  * @param event_element_id - The UUID of the event element to delete
  * @returns True if successful
  * @throws {Error} If database delete fails
  *
  * @example
- * await removeElementFromEvent('event-element-uuid');
+ * await removeElementFromEvent(supabase, 'event-element-uuid');
  */
-export async function removeElementFromEvent(event_element_id: string): Promise<boolean> {
+export async function removeElementFromEvent(supabase: SupabaseClient<Database>, event_element_id: string): Promise<boolean> {
   const { error } = await supabase
     .from('event_elements')
     .delete()
@@ -184,7 +194,9 @@ export async function removeElementFromEvent(event_element_id: string): Promise<
  * Change event element status
  *
  * Updates the status and logs the change to action_history.
+ * Note: Requires admin privileges for action_history logging.
  *
+ * @param supabase - Supabase client instance (requires admin privileges)
  * @param event_element_id - The UUID of the event element
  * @param new_status - The new status
  * @param user_id - The ID of the user making the change
@@ -193,23 +205,24 @@ export async function removeElementFromEvent(event_element_id: string): Promise<
  * @throws {Error} If update fails
  *
  * @example
- * await changeEventElementStatus('event-element-uuid', 'completed', 'user-uuid', 'venue');
+ * await changeEventElementStatus(supabaseAdmin, 'event-element-uuid', 'completed', 'user-uuid', 'venue');
  */
 export async function changeEventElementStatus(
+  supabase: SupabaseClient<Database>,
   event_element_id: string,
   new_status: ElementStatus,
   user_id: string,
   user_type: 'client' | 'venue' | 'vendor' | 'system'
 ): Promise<EventElement> {
-  const eventElement = await getEventElement(event_element_id);
+  const eventElement = await getEventElement(supabase, event_element_id);
   if (!eventElement) {
     throw new Error('Event element not found');
   }
 
-  const updated = await updateEventElement(event_element_id, { status: new_status });
+  const updated = await updateEventElement(supabase, event_element_id, { status: new_status });
 
   // Log the action
-  await supabaseAdmin.from('action_history').insert({
+  await supabase.from('action_history').insert({
     event_id: eventElement.event_id,
     user_id,
     user_type,
@@ -228,15 +241,17 @@ export async function changeEventElementStatus(
 /**
  * Get event elements by status
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event
  * @param status - The status to filter by
  * @returns Array of event elements
  * @throws {Error} If database query fails
  *
  * @example
- * const needsAttention = await getEventElementsByStatus('event-uuid', 'needs_attention');
+ * const needsAttention = await getEventElementsByStatus(supabase, 'event-uuid', 'needs_attention');
  */
 export async function getEventElementsByStatus(
+  supabase: SupabaseClient<Database>,
   event_id: string,
   status: ElementStatus
 ): Promise<EventElement[]> {
@@ -250,7 +265,7 @@ export async function getEventElementsByStatus(
     throw new Error(`Failed to get event elements by status: ${error.message}`);
   }
 
-  return data?.map((ee) => EventElementSchema.parse(ee)) || [];
+  return data?.map((ee: any) => EventElementSchema.parse(ee)) || [];
 }
 
 /**
@@ -258,15 +273,16 @@ export async function getEventElementsByStatus(
  *
  * Calculates the total cost of all elements for an event.
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event
  * @returns Object with total amounts
  * @throws {Error} If database query fails
  *
  * @example
- * const totals = await getEventElementTotals('event-uuid');
+ * const totals = await getEventElementTotals(supabase, 'event-uuid');
  * // { total: 15000, completed: 10000, pending: 5000 }
  */
-export async function getEventElementTotals(event_id: string): Promise<{
+export async function getEventElementTotals(supabase: SupabaseClient<Database>, event_id: string): Promise<{
   total: number;
   completed: number;
   pending: number;
@@ -286,7 +302,7 @@ export async function getEventElementTotals(event_id: string): Promise<{
     pending: 0,
   };
 
-  data?.forEach((ee) => {
+  data?.forEach((ee: any) => {
     totals.total += ee.amount || 0;
     if (ee.status === 'completed') {
       totals.completed += ee.amount || 0;
@@ -303,17 +319,19 @@ export async function getEventElementTotals(event_id: string): Promise<{
  *
  * Marks the contract as completed for an event element.
  *
+ * @param supabase - Supabase client instance
  * @param event_element_id - The UUID of the event element
  * @param completed - Whether the contract is completed
  * @returns The updated event element
  * @throws {Error} If update fails
  *
  * @example
- * await updateEventElementContract('event-element-uuid', true);
+ * await updateEventElementContract(supabase, 'event-element-uuid', true);
  */
 export async function updateEventElementContract(
+  supabase: SupabaseClient<Database>,
   event_element_id: string,
   completed: boolean
 ): Promise<EventElement> {
-  return updateEventElement(event_element_id, { contract_completed: completed });
+  return updateEventElement(supabase, event_element_id, { contract_completed: completed });
 }

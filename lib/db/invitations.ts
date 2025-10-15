@@ -5,7 +5,8 @@
  * All functions are designed to be callable by LLM agents as tools.
  */
 
-import { supabase, supabaseAdmin } from './supabaseClient';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../supabase/database.types.gen';
 import {
   InvitationSchema,
   CreateInvitationSchema,
@@ -28,14 +29,15 @@ function generateInvitationToken(): string {
 /**
  * Get an invitation by ID
  *
+ * @param supabase - Supabase client instance
  * @param invitation_id - The UUID of the invitation to retrieve
  * @returns The invitation object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const invitation = await getInvitation('invitation-uuid');
+ * const invitation = await getInvitation(supabase, 'invitation-uuid');
  */
-export async function getInvitation(invitation_id: string): Promise<Invitation | null> {
+export async function getInvitation(supabase: SupabaseClient<Database>, invitation_id: string): Promise<Invitation | null> {
   const { data, error } = await supabase
     .from('invitations')
     .select('*')
@@ -53,14 +55,15 @@ export async function getInvitation(invitation_id: string): Promise<Invitation |
 /**
  * Get an invitation by token
  *
+ * @param supabase - Supabase client instance
  * @param token - The invitation token
  * @returns The invitation object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const invitation = await getInvitationByToken('abc123...');
+ * const invitation = await getInvitationByToken(supabase, 'abc123...');
  */
-export async function getInvitationByToken(token: string): Promise<Invitation | null> {
+export async function getInvitationByToken(supabase: SupabaseClient<Database>, token: string): Promise<Invitation | null> {
   const { data, error } = await supabase
     .from('invitations')
     .select('*')
@@ -78,12 +81,15 @@ export async function getInvitationByToken(token: string): Promise<Invitation | 
 /**
  * Create an invitation
  *
+ * Note: Requires admin privileges.
+ *
+ * @param supabase - Supabase client instance (requires admin privileges)
  * @param invitation - The invitation data (token will be auto-generated if not provided)
  * @returns The created invitation object
  * @throws {Error} If validation fails or database insert fails
  *
  * @example
- * const invitation = await createInvitation({
+ * const invitation = await createInvitation(supabaseAdmin, {
  *   invitee_email: 'vendor@example.com',
  *   invited_by: 'venue-uuid',
  *   invitation_type: 'vendor',
@@ -92,6 +98,7 @@ export async function getInvitationByToken(token: string): Promise<Invitation | 
  * });
  */
 export async function createInvitation(
+  supabase: SupabaseClient<Database>,
   invitation: Omit<CreateInvitation, 'token'> & { token?: string }
 ): Promise<Invitation> {
   const token = invitation.token || generateInvitationToken();
@@ -102,7 +109,7 @@ export async function createInvitation(
     status: 'pending',
   });
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from('invitations')
     .insert(validated)
     .select()
@@ -118,16 +125,18 @@ export async function createInvitation(
 /**
  * List invitations sent by a user
  *
+ * @param supabase - Supabase client instance
  * @param invited_by - The UUID of the user who sent the invitations
  * @param status - Optional: filter by status
  * @returns Array of invitations
  * @throws {Error} If database query fails
  *
  * @example
- * const allInvitations = await listInvitations('user-uuid');
- * const pending = await listInvitations('user-uuid', 'pending');
+ * const allInvitations = await listInvitations(supabase, 'user-uuid');
+ * const pending = await listInvitations(supabase, 'user-uuid', 'pending');
  */
 export async function listInvitations(
+  supabase: SupabaseClient<Database>,
   invited_by: string,
   status?: InvitationStatus
 ): Promise<Invitation[]> {
@@ -147,23 +156,25 @@ export async function listInvitations(
     throw new Error(`Failed to list invitations: ${error.message}`);
   }
 
-  return data?.map((invitation) => InvitationSchema.parse(invitation)) || [];
+  return data?.map((invitation: any) => InvitationSchema.parse(invitation)) || [];
 }
 
 /**
  * Accept an invitation
  *
  * Marks the invitation as accepted and sets the used_at timestamp.
+ * Note: Requires admin privileges.
  *
+ * @param supabase - Supabase client instance (requires admin privileges)
  * @param token - The invitation token
  * @returns The updated invitation
  * @throws {Error} If invitation not found, expired, or already used
  *
  * @example
- * const invitation = await acceptInvitation('abc123...');
+ * const invitation = await acceptInvitation(supabaseAdmin, 'abc123...');
  */
-export async function acceptInvitation(token: string): Promise<Invitation> {
-  const invitation = await getInvitationByToken(token);
+export async function acceptInvitation(supabase: SupabaseClient<Database>, token: string): Promise<Invitation> {
+  const invitation = await getInvitationByToken(supabase, token);
 
   if (!invitation) {
     throw new Error('Invitation not found');
@@ -175,7 +186,7 @@ export async function acceptInvitation(token: string): Promise<Invitation> {
 
   if (new Date(invitation.expires_at) < new Date()) {
     // Mark as expired
-    await supabaseAdmin
+    await supabase
       .from('invitations')
       .update({ status: 'expired' })
       .eq('invitation_id', invitation.invitation_id);
@@ -183,7 +194,7 @@ export async function acceptInvitation(token: string): Promise<Invitation> {
     throw new Error('Invitation has expired');
   }
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from('invitations')
     .update({
       status: 'accepted',
@@ -204,16 +215,18 @@ export async function acceptInvitation(token: string): Promise<Invitation> {
  * Decline an invitation
  *
  * Marks the invitation as declined.
+ * Note: Requires admin privileges.
  *
+ * @param supabase - Supabase client instance (requires admin privileges)
  * @param token - The invitation token
  * @returns The updated invitation
  * @throws {Error} If invitation not found or already used
  *
  * @example
- * const invitation = await declineInvitation('abc123...');
+ * const invitation = await declineInvitation(supabaseAdmin, 'abc123...');
  */
-export async function declineInvitation(token: string): Promise<Invitation> {
-  const invitation = await getInvitationByToken(token);
+export async function declineInvitation(supabase: SupabaseClient<Database>, token: string): Promise<Invitation> {
+  const invitation = await getInvitationByToken(supabase, token);
 
   if (!invitation) {
     throw new Error('Invitation not found');
@@ -223,7 +236,7 @@ export async function declineInvitation(token: string): Promise<Invitation> {
     throw new Error(`Invitation already ${invitation.status}`);
   }
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from('invitations')
     .update({
       status: 'declined',
@@ -244,22 +257,24 @@ export async function declineInvitation(token: string): Promise<Invitation> {
  * Verify an invitation token
  *
  * Checks if a token is valid and not expired.
+ * Note: Requires admin privileges for marking as expired.
  *
+ * @param supabase - Supabase client instance (requires admin privileges)
  * @param token - The invitation token to verify
  * @returns Object with validation result and invitation if valid
  *
  * @example
- * const result = await verifyInvitationToken('abc123...');
+ * const result = await verifyInvitationToken(supabaseAdmin, 'abc123...');
  * if (result.valid) {
  *   // Token is valid, proceed with registration
  * }
  */
-export async function verifyInvitationToken(token: string): Promise<{
+export async function verifyInvitationToken(supabase: SupabaseClient<Database>, token: string): Promise<{
   valid: boolean;
   invitation: Invitation | null;
   error?: string;
 }> {
-  const invitation = await getInvitationByToken(token);
+  const invitation = await getInvitationByToken(supabase, token);
 
   if (!invitation) {
     return { valid: false, invitation: null, error: 'Invitation not found' };
@@ -271,7 +286,7 @@ export async function verifyInvitationToken(token: string): Promise<{
 
   if (new Date(invitation.expires_at) < new Date()) {
     // Mark as expired
-    await supabaseAdmin
+    await supabase
       .from('invitations')
       .update({ status: 'expired' })
       .eq('invitation_id', invitation.invitation_id);
@@ -286,17 +301,19 @@ export async function verifyInvitationToken(token: string): Promise<{
  * Expire old pending invitations
  *
  * Marks all pending invitations past their expiration date as expired.
+ * Note: Requires admin privileges.
  *
+ * @param supabase - Supabase client instance (requires admin privileges)
  * @returns Number of invitations expired
  * @throws {Error} If update fails
  *
  * @example
- * const count = await expireOldInvitations();
+ * const count = await expireOldInvitations(supabaseAdmin);
  */
-export async function expireOldInvitations(): Promise<number> {
+export async function expireOldInvitations(supabase: SupabaseClient<Database>): Promise<number> {
   const now = new Date().toISOString();
 
-  const { count, error } = await supabaseAdmin
+  const { count, error } = await supabase
     .from('invitations')
     .update({ status: 'expired' })
     .eq('status', 'pending')
@@ -314,27 +331,30 @@ export async function expireOldInvitations(): Promise<number> {
  *
  * Creates a new invitation with a fresh token and expiration date.
  * Marks the old invitation as expired.
+ * Note: Requires admin privileges.
  *
+ * @param supabase - Supabase client instance (requires admin privileges)
  * @param old_invitation_id - The UUID of the invitation to resend
  * @param new_expiration_days - Days until new invitation expires (default: 7)
  * @returns The new invitation object
  * @throws {Error} If old invitation not found or new invitation fails to create
  *
  * @example
- * const newInvitation = await resendInvitation('old-invitation-uuid');
+ * const newInvitation = await resendInvitation(supabaseAdmin, 'old-invitation-uuid');
  */
 export async function resendInvitation(
+  supabase: SupabaseClient<Database>,
   old_invitation_id: string,
   new_expiration_days: number = 7
 ): Promise<Invitation> {
-  const oldInvitation = await getInvitation(old_invitation_id);
+  const oldInvitation = await getInvitation(supabase, old_invitation_id);
 
   if (!oldInvitation) {
     throw new Error('Invitation not found');
   }
 
   // Mark old invitation as expired
-  await supabaseAdmin
+  await supabase
     .from('invitations')
     .update({ status: 'expired' })
     .eq('invitation_id', old_invitation_id);
@@ -343,7 +363,7 @@ export async function resendInvitation(
   const newExpiration = new Date();
   newExpiration.setDate(newExpiration.getDate() + new_expiration_days);
 
-  return createInvitation({
+  return createInvitation(supabase, {
     invitee_email: oldInvitation.invitee_email,
     invited_by: oldInvitation.invited_by,
     invitation_type: oldInvitation.invitation_type,

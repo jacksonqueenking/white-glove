@@ -5,7 +5,8 @@
  * All functions are designed to be callable by LLM agents as tools.
  */
 
-import { supabase, supabaseAdmin } from './supabaseClient';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../supabase/database.types.gen';
 import {
   VendorSchema,
   CreateVendorSchema,
@@ -18,14 +19,15 @@ import {
 /**
  * Get a vendor by ID
  *
+ * @param supabase - Supabase client instance
  * @param vendor_id - The UUID of the vendor to retrieve
  * @returns The vendor object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const vendor = await getVendor('vendor-uuid');
+ * const vendor = await getVendor(supabase, 'vendor-uuid');
  */
-export async function getVendor(vendor_id: string): Promise<Vendor | null> {
+export async function getVendor(supabase: SupabaseClient<Database>, vendor_id: string): Promise<Vendor | null> {
   const { data, error } = await supabase
     .from('vendors')
     .select('*')
@@ -46,14 +48,15 @@ export async function getVendor(vendor_id: string): Promise<Vendor | null> {
  *
  * Useful for checking if a vendor already exists before creating.
  *
+ * @param supabase - Supabase client instance
  * @param email - The email address to search for
  * @returns The vendor object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const vendor = await getVendorByEmail('vendor@example.com');
+ * const vendor = await getVendorByEmail(supabase, 'vendor@example.com');
  */
-export async function getVendorByEmail(email: string): Promise<Vendor | null> {
+export async function getVendorByEmail(supabase: SupabaseClient<Database>, email: string): Promise<Vendor | null> {
   const { data, error } = await supabase
     .from('vendors')
     .select('*')
@@ -72,6 +75,7 @@ export async function getVendorByEmail(email: string): Promise<Vendor | null> {
 /**
  * List all vendors
  *
+ * @param supabase - Supabase client instance
  * @param params - Filter parameters
  * @param params.limit - Maximum number of vendors to return (default: 50)
  * @param params.offset - Number of vendors to skip (for pagination)
@@ -79,9 +83,9 @@ export async function getVendorByEmail(email: string): Promise<Vendor | null> {
  * @throws {Error} If the database query fails
  *
  * @example
- * const vendors = await listVendors({ limit: 20 });
+ * const vendors = await listVendors(supabase, { limit: 20 });
  */
-export async function listVendors(params?: {
+export async function listVendors(supabase: SupabaseClient<Database>, params?: {
   limit?: number;
   offset?: number;
 }): Promise<Vendor[]> {
@@ -105,7 +109,7 @@ export async function listVendors(params?: {
     throw new Error(`Failed to list vendors: ${error.message}`);
   }
 
-  return data?.map((vendor) => VendorSchema.parse(vendor)) || [];
+  return data?.map((vendor: any) => VendorSchema.parse(vendor)) || [];
 }
 
 /**
@@ -114,12 +118,15 @@ export async function listVendors(params?: {
  * This should be called after a vendor user signs up via Supabase Auth.
  * The vendor_id should match the auth.users.id.
  *
+ * Note: Requires admin privileges.
+ *
+ * @param supabase - Supabase client instance
  * @param vendor - The vendor data to create
  * @returns The created vendor object
  * @throws {Error} If validation fails or database insert fails
  *
  * @example
- * const newVendor = await createVendor({
+ * const newVendor = await createVendor(supabase, {
  *   vendor_id: authUser.id,
  *   name: 'Elegant Florals',
  *   email: 'contact@elegantflorals.com',
@@ -143,11 +150,11 @@ export async function listVendors(params?: {
  *   ]
  * });
  */
-export async function createVendor(vendor: CreateVendor): Promise<Vendor> {
+export async function createVendor(supabase: SupabaseClient<Database>, vendor: CreateVendor): Promise<Vendor> {
   // Validate input
   const validated = CreateVendorSchema.parse(vendor);
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from('vendors')
     .insert(validated as any)
     .select()
@@ -163,18 +170,20 @@ export async function createVendor(vendor: CreateVendor): Promise<Vendor> {
 /**
  * Update an existing vendor
  *
+ * @param supabase - Supabase client instance
  * @param vendor_id - The UUID of the vendor to update
  * @param updates - The fields to update
  * @returns The updated vendor object
  * @throws {Error} If validation fails or database update fails
  *
  * @example
- * const updated = await updateVendor('vendor-uuid', {
+ * const updated = await updateVendor(supabase, 'vendor-uuid', {
  *   description: 'Updated description with new services',
  *   contact_persons: [...]
  * });
  */
 export async function updateVendor(
+  supabase: SupabaseClient<Database>,
   vendor_id: string,
   updates: UpdateVendor
 ): Promise<Vendor> {
@@ -199,14 +208,15 @@ export async function updateVendor(
 /**
  * Soft delete a vendor (sets deleted_at timestamp)
  *
+ * @param supabase - Supabase client instance
  * @param vendor_id - The UUID of the vendor to delete
  * @returns True if successful
  * @throws {Error} If database update fails
  *
  * @example
- * await deleteVendor('vendor-uuid');
+ * await deleteVendor(supabase, 'vendor-uuid');
  */
-export async function deleteVendor(vendor_id: string): Promise<boolean> {
+export async function deleteVendor(supabase: SupabaseClient<Database>, vendor_id: string): Promise<boolean> {
   const { error } = await supabase
     .from('vendors')
     .update({ deleted_at: new Date().toISOString() })
@@ -224,16 +234,18 @@ export async function deleteVendor(vendor_id: string): Promise<boolean> {
  *
  * Returns the list of venues where this vendor is approved to work.
  *
+ * @param supabase - Supabase client instance
  * @param vendor_id - The UUID of the vendor
  * @param approval_status - Optional: filter by approval status (default: 'approved')
  * @returns Array of venue_vendor relationships with venue details
  * @throws {Error} If database query fails
  *
  * @example
- * const approvedVenues = await getVendorVenues('vendor-uuid');
- * const pendingVenues = await getVendorVenues('vendor-uuid', 'pending');
+ * const approvedVenues = await getVendorVenues(supabase, 'vendor-uuid');
+ * const pendingVenues = await getVendorVenues(supabase, 'vendor-uuid', 'pending');
  */
 export async function getVendorVenues(
+  supabase: SupabaseClient<Database>,
   vendor_id: string,
   approval_status: string = 'approved'
 ): Promise<any[]> {
@@ -255,16 +267,18 @@ export async function getVendorVenues(
  *
  * Returns events where the vendor has elements assigned.
  *
+ * @param supabase - Supabase client instance
  * @param vendor_id - The UUID of the vendor
  * @param upcoming_only - If true, only return upcoming events (default: false)
  * @returns Array of events
  * @throws {Error} If database query fails
  *
  * @example
- * const allEvents = await getVendorEvents('vendor-uuid');
- * const upcomingEvents = await getVendorEvents('vendor-uuid', true);
+ * const allEvents = await getVendorEvents(supabase, 'vendor-uuid');
+ * const upcomingEvents = await getVendorEvents(supabase, 'vendor-uuid', true);
  */
 export async function getVendorEvents(
+  supabase: SupabaseClient<Database>,
   vendor_id: string,
   upcoming_only: boolean = false
 ): Promise<any[]> {
@@ -301,15 +315,17 @@ export async function getVendorEvents(
 /**
  * Search vendors by name or description
  *
+ * @param supabase - Supabase client instance
  * @param search_term - The search term (matches name or description)
  * @param limit - Maximum number of results (default: 20)
  * @returns Array of matching vendors
  * @throws {Error} If database query fails
  *
  * @example
- * const florists = await searchVendors('floral');
+ * const florists = await searchVendors(supabase, 'floral');
  */
 export async function searchVendors(
+  supabase: SupabaseClient<Database>,
   search_term: string,
   limit: number = 20
 ): Promise<Vendor[]> {
@@ -325,19 +341,20 @@ export async function searchVendors(
     throw new Error(`Failed to search vendors: ${error.message}`);
   }
 
-  return data?.map((vendor) => VendorSchema.parse(vendor)) || [];
+  return data?.map((vendor: any) => VendorSchema.parse(vendor)) || [];
 }
 
 /**
  * Add or update a contact person for a vendor
  *
+ * @param supabase - Supabase client instance
  * @param vendor_id - The UUID of the vendor
  * @param contact_person - The contact person to add/update
  * @returns The updated vendor object
  * @throws {Error} If update fails
  *
  * @example
- * await addVendorContactPerson('vendor-uuid', {
+ * await addVendorContactPerson(supabase, 'vendor-uuid', {
  *   name: 'John Doe',
  *   role: 'Sales Manager',
  *   email: 'john@vendor.com',
@@ -346,6 +363,7 @@ export async function searchVendors(
  * });
  */
 export async function addVendorContactPerson(
+  supabase: SupabaseClient<Database>,
   vendor_id: string,
   contact_person: {
     name: string;
@@ -355,7 +373,7 @@ export async function addVendorContactPerson(
     is_primary: boolean;
   }
 ): Promise<Vendor> {
-  const vendor = await getVendor(vendor_id);
+  const vendor = await getVendor(supabase, vendor_id);
   if (!vendor) {
     throw new Error('Vendor not found');
   }
@@ -363,5 +381,5 @@ export async function addVendorContactPerson(
   const currentContacts = vendor.contact_persons || [];
   const updatedContacts = [...currentContacts, contact_person];
 
-  return updateVendor(vendor_id, { contact_persons: updatedContacts });
+  return updateVendor(supabase, vendor_id, { contact_persons: updatedContacts });
 }

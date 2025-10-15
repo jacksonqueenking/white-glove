@@ -6,6 +6,7 @@ import {
   createVenueRecord,
 } from '@/lib/auth/helpers';
 import { venueRegistrationSchema } from '@/lib/auth/validation';
+import { createServiceClient } from '@/lib/supabase/server';
 
 /**
  * POST /api/onboarding/venue
@@ -36,6 +37,8 @@ export async function POST(request: Request) {
       state,
       zip,
       description,
+      spaces,
+      offerings,
     } = validation.data;
 
     // Verify the invitation token
@@ -95,11 +98,83 @@ export async function POST(request: Request) {
     // Mark invitation as used
     await markInvitationUsed(token);
 
+    const supabase = createServiceClient();
+
+    // Create spaces if provided
+    if (spaces && Array.isArray(spaces) && spaces.length > 0) {
+      for (const space of spaces) {
+        const { error: spaceError } = await supabase.from('spaces').insert({
+          venue_id: userId,
+          name: space.name,
+          description: space.description,
+          capacity: space.capacity,
+          main_image_url: space.main_image_url || null,
+        });
+
+        if (spaceError) {
+          console.error('Failed to create space:', spaceError);
+          // Continue creating other spaces even if one fails
+        }
+      }
+    }
+
+    // Create a vendor record for the venue (so it can offer in-house services)
+    // This allows the venue to act as its own vendor for in-house offerings
+    const { error: vendorError } = await supabase.from('vendors').insert({
+      vendor_id: userId,
+      name: name,
+      email: email,
+      phone_number: phone,
+      address: { street, city, state, zip, country: 'US' },
+      description: `In-house services provided by ${name}`,
+    });
+
+    if (vendorError) {
+      console.error('Failed to create vendor record for venue:', vendorError);
+      // This is not critical - venue can still operate without in-house offerings
+    }
+
+    // Create venue-vendor relationship (venue acts as its own vendor for in-house offerings)
+    const { data: venueVendor, error: venueVendorError } = await supabase
+      .from('venue_vendors')
+      .insert({
+        venue_id: userId,
+        vendor_id: userId, // Venue acts as its own vendor
+        approval_status: 'approved', // Auto-approve venue's own offerings
+      })
+      .select()
+      .single();
+
+    if (venueVendorError) {
+      console.error('Failed to create venue-vendor relationship:', venueVendorError);
+    }
+
+    // Create offerings/elements if provided and venue-vendor relationship was created
+    if (offerings && Array.isArray(offerings) && offerings.length > 0 && venueVendor) {
+      for (const offering of offerings) {
+        const { error: offeringError } = await supabase.from('elements').insert({
+          venue_vendor_id: (venueVendor as any).venue_vendor_id,
+          name: offering.name,
+          category: offering.category,
+          price: offering.price,
+          description: offering.description,
+          availability_rules: {
+            lead_time_days: offering.lead_time_days || 0,
+          },
+        });
+
+        if (offeringError) {
+          console.error('Failed to create offering:', offeringError);
+          // Continue creating other offerings even if one fails
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       user: signupResult.data.user,
       message: 'Venue account created successfully',
-      redirect: '/venue/onboarding/spaces',
+      redirect: '/venue/dashboard',
     });
   } catch (error) {
     console.error('Venue onboarding error:', error);

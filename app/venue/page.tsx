@@ -1,11 +1,31 @@
-// Landing page for the venue console.
-export default function VenueHomePage() {
+'use client';
+
+import { useCurrentUser } from "../../lib/hooks/useCurrentUser";
+import { VenueGeneralChat } from "../../components/chat/VenueGeneralChat";
+
+// Venue landing page - full-screen chat interface
+export default function VenueLandingPage() {
+  const { user, loading } = useCurrentUser();
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-slate-600">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user || user.type !== 'venue' || !user.venueId) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-slate-600">Please log in as a venue user</div>
+      </div>
+    );
+  }
+
   return (
-    <section className="space-y-4">
-      <h1 className="text-3xl font-semibold">Venue Console</h1>
-      <p className="text-sm text-slate-600">
-        Provide quick access to `/venue/dashboard`, event alerts, and recent AI assistant summaries.
-      </p>
-    </section>
+    <div className="h-full flex flex-col">
+      <VenueGeneralChat venueId={user.venueId} className="flex-1" />
+    </div>
   );
 }

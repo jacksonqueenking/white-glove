@@ -5,7 +5,8 @@
  * All functions are designed to be callable by LLM agents as tools.
  */
 
-import { supabase } from './supabaseClient';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../supabase/database.types.gen';
 import {
   ElementSchema,
   CreateElementSchema,
@@ -18,14 +19,18 @@ import {
 /**
  * Get an element by ID
  *
+ * @param supabase - Supabase client instance
  * @param element_id - The UUID of the element to retrieve
  * @returns The element object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const element = await getElement('element-uuid');
+ * const element = await getElement(supabase, 'element-uuid');
  */
-export async function getElement(element_id: string): Promise<Element | null> {
+export async function getElement(
+  supabase: SupabaseClient<Database>,
+  element_id: string
+): Promise<Element | null> {
   const { data, error } = await supabase
     .from('elements')
     .select('*')
@@ -44,16 +49,18 @@ export async function getElement(element_id: string): Promise<Element | null> {
 /**
  * List elements for a venue_vendor
  *
+ * @param supabase - Supabase client instance
  * @param venue_vendor_id - The UUID of the venue_vendor relationship
  * @param category - Optional: filter by category
  * @returns Array of elements
  * @throws {Error} If the database query fails
  *
  * @example
- * const elements = await listElements('venue-vendor-uuid');
- * const catering = await listElements('venue-vendor-uuid', 'catering');
+ * const elements = await listElements(supabase, 'venue-vendor-uuid');
+ * const catering = await listElements(supabase, 'venue-vendor-uuid', 'catering');
  */
 export async function listElements(
+  supabase: SupabaseClient<Database>,
   venue_vendor_id: string,
   category?: string
 ): Promise<Element[]> {
@@ -74,7 +81,7 @@ export async function listElements(
     throw new Error(`Failed to list elements: ${error.message}`);
   }
 
-  return data?.map((element) => ElementSchema.parse(element)) || [];
+  return data?.map((element: any) => ElementSchema.parse(element)) || [];
 }
 
 /**
@@ -82,16 +89,18 @@ export async function listElements(
  *
  * Returns all elements from all approved vendors for a venue.
  *
+ * @param supabase - Supabase client instance
  * @param venue_id - The UUID of the venue
  * @param category - Optional: filter by category
  * @returns Array of elements with vendor info
  * @throws {Error} If database query fails
  *
  * @example
- * const allElements = await getVenueElements('venue-uuid');
- * const floralOptions = await getVenueElements('venue-uuid', 'florals');
+ * const allElements = await getVenueElements(supabase, 'venue-uuid');
+ * const floralOptions = await getVenueElements(supabase, 'venue-uuid', 'florals');
  */
 export async function getVenueElements(
+  supabase: SupabaseClient<Database>,
   venue_id: string,
   category?: string
 ): Promise<any[]> {
@@ -120,12 +129,13 @@ export async function getVenueElements(
 /**
  * Create a new element
  *
+ * @param supabase - Supabase client instance
  * @param element - The element data to create
  * @returns The created element object
  * @throws {Error} If validation fails or database insert fails
  *
  * @example
- * const newElement = await createElement({
+ * const newElement = await createElement(supabase, {
  *   venue_vendor_id: 'vv-uuid',
  *   name: 'Premium Floral Package',
  *   category: 'florals',
@@ -136,7 +146,10 @@ export async function getVenueElements(
  *   }
  * });
  */
-export async function createElement(element: CreateElement): Promise<Element> {
+export async function createElement(
+  supabase: SupabaseClient<Database>,
+  element: CreateElement
+): Promise<Element> {
   // Validate input
   const validated = CreateElementSchema.parse(element);
 
@@ -156,18 +169,20 @@ export async function createElement(element: CreateElement): Promise<Element> {
 /**
  * Update an existing element
  *
+ * @param supabase - Supabase client instance
  * @param element_id - The UUID of the element to update
  * @param updates - The fields to update
  * @returns The updated element object
  * @throws {Error} If validation fails or database update fails
  *
  * @example
- * const updated = await updateElement('element-uuid', {
+ * const updated = await updateElement(supabase, 'element-uuid', {
  *   price: 2750.00,
  *   description: 'Updated package includes arch rental'
  * });
  */
 export async function updateElement(
+  supabase: SupabaseClient<Database>,
   element_id: string,
   updates: UpdateElement
 ): Promise<Element> {
@@ -192,14 +207,18 @@ export async function updateElement(
 /**
  * Soft delete an element (sets deleted_at timestamp)
  *
+ * @param supabase - Supabase client instance
  * @param element_id - The UUID of the element to delete
  * @returns True if successful
  * @throws {Error} If database update fails
  *
  * @example
- * await deleteElement('element-uuid');
+ * await deleteElement(supabase, 'element-uuid');
  */
-export async function deleteElement(element_id: string): Promise<boolean> {
+export async function deleteElement(
+  supabase: SupabaseClient<Database>,
+  element_id: string
+): Promise<boolean> {
   const { error } = await supabase
     .from('elements')
     .update({ deleted_at: new Date().toISOString() })
@@ -217,19 +236,21 @@ export async function deleteElement(element_id: string): Promise<boolean> {
  *
  * Checks lead time requirements and blackout dates.
  *
+ * @param supabase - Supabase client instance
  * @param element_id - The UUID of the element
  * @param event_date - The event date to check
  * @returns True if available, false otherwise
  * @throws {Error} If database query fails
  *
  * @example
- * const available = await isElementAvailable('element-uuid', '2025-06-15T14:00:00Z');
+ * const available = await isElementAvailable(supabase, 'element-uuid', '2025-06-15T14:00:00Z');
  */
 export async function isElementAvailable(
+  supabase: SupabaseClient<Database>,
   element_id: string,
   event_date: string
 ): Promise<boolean> {
-  const element = await getElement(element_id);
+  const element = await getElement(supabase, element_id);
   if (!element) {
     return false;
   }
@@ -257,16 +278,18 @@ export async function isElementAvailable(
 /**
  * Get elements by category
  *
+ * @param supabase - Supabase client instance
  * @param category - The category to filter by
  * @param venue_id - Optional: limit to a specific venue
  * @returns Array of elements
  * @throws {Error} If database query fails
  *
  * @example
- * const cateringOptions = await getElementsByCategory('catering');
- * const venueCatering = await getElementsByCategory('catering', 'venue-uuid');
+ * const cateringOptions = await getElementsByCategory(supabase, 'catering');
+ * const venueCatering = await getElementsByCategory(supabase, 'catering', 'venue-uuid');
  */
 export async function getElementsByCategory(
+  supabase: SupabaseClient<Database>,
   category: string,
   venue_id?: string
 ): Promise<Element[]> {
@@ -302,6 +325,7 @@ export async function getElementsByCategory(
 /**
  * Search elements by name or description
  *
+ * @param supabase - Supabase client instance
  * @param search_term - The search term
  * @param venue_id - Optional: limit to a specific venue
  * @param limit - Maximum number of results (default: 20)
@@ -309,10 +333,11 @@ export async function getElementsByCategory(
  * @throws {Error} If database query fails
  *
  * @example
- * const results = await searchElements('flower');
- * const venueResults = await searchElements('flower', 'venue-uuid');
+ * const results = await searchElements(supabase, 'flower');
+ * const venueResults = await searchElements(supabase, 'flower', 'venue-uuid');
  */
 export async function searchElements(
+  supabase: SupabaseClient<Database>,
   search_term: string,
   venue_id?: string,
   limit: number = 20

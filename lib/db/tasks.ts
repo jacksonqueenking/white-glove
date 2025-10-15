@@ -6,7 +6,8 @@
  * All functions are designed to be callable by LLM agents as tools.
  */
 
-import { supabase, supabaseAdmin } from './supabaseClient';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../supabase/database.types.gen';
 import {
   TaskSchema,
   CreateTaskSchema,
@@ -22,14 +23,18 @@ import {
 /**
  * Get a task by ID
  *
+ * @param supabase - Supabase client instance
  * @param task_id - The UUID of the task to retrieve
  * @returns The task object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const task = await getTask('task-uuid');
+ * const task = await getTask(supabase, 'task-uuid');
  */
-export async function getTask(task_id: string): Promise<Task | null> {
+export async function getTask(
+  supabase: SupabaseClient<Database>,
+  task_id: string
+): Promise<Task | null> {
   const { data, error } = await supabase
     .from('tasks')
     .select('*')
@@ -47,6 +52,7 @@ export async function getTask(task_id: string): Promise<Task | null> {
 /**
  * List tasks with optional filtering
  *
+ * @param supabase - Supabase client instance
  * @param params - Filter parameters
  * @param params.assigned_to_id - Filter by assigned user ID
  * @param params.assigned_to_type - Filter by assigned user type
@@ -59,21 +65,24 @@ export async function getTask(task_id: string): Promise<Task | null> {
  * @throws {Error} If the database query fails
  *
  * @example
- * const tasks = await listTasks({
+ * const tasks = await listTasks(supabase, {
  *   assigned_to_id: 'user-uuid',
  *   assigned_to_type: 'client',
  *   status: 'pending'
  * });
  */
-export async function listTasks(params?: {
-  assigned_to_id?: string;
-  assigned_to_type?: UserType;
-  event_id?: string;
-  status?: TaskStatus;
-  priority?: Priority;
-  include_completed?: boolean;
-  limit?: number;
-}): Promise<Task[]> {
+export async function listTasks(
+  supabase: SupabaseClient<Database>,
+  params?: {
+    assigned_to_id?: string;
+    assigned_to_type?: UserType;
+    event_id?: string;
+    status?: TaskStatus;
+    priority?: Priority;
+    include_completed?: boolean;
+    limit?: number;
+  }
+): Promise<Task[]> {
   let query = supabase
     .from('tasks')
     .select('*')
@@ -113,7 +122,7 @@ export async function listTasks(params?: {
     throw new Error(`Failed to list tasks: ${error.message}`);
   }
 
-  return data?.map((task) => TaskSchema.parse(task)) || [];
+  return data?.map((task: any) => TaskSchema.parse(task)) || [];
 }
 
 /**
@@ -122,12 +131,15 @@ export async function listTasks(params?: {
  * This is the primary function the AI orchestrator uses to assign work to users.
  * It automatically creates a notification for the assigned user.
  *
+ * Note: Requires admin privileges for creating notifications.
+ *
+ * @param supabase - Supabase client instance
  * @param task - The task data to create
  * @returns The created task object
  * @throws {Error} If validation fails or database insert fails
  *
  * @example
- * const task = await createTask({
+ * const task = await createTask(supabase, {
  *   event_id: 'event-uuid',
  *   assigned_to_id: 'user-uuid',
  *   assigned_to_type: 'client',
@@ -138,7 +150,10 @@ export async function listTasks(params?: {
  *   created_by: 'orchestrator'
  * });
  */
-export async function createTask(task: CreateTask): Promise<Task> {
+export async function createTask(
+  supabase: SupabaseClient<Database>,
+  task: CreateTask
+): Promise<Task> {
   // Validate input
   const validated = CreateTaskSchema.parse(task);
 
@@ -154,8 +169,8 @@ export async function createTask(task: CreateTask): Promise<Task> {
 
   const createdTask = TaskSchema.parse(data);
 
-  // Create notification for assigned user (using admin client)
-  await supabaseAdmin.from('notifications').insert({
+  // Create notification for assigned user
+  await supabase.from('notifications').insert({
     user_id: createdTask.assigned_to_id,
     user_type: createdTask.assigned_to_type,
     notification_type: 'task_created',
@@ -170,17 +185,19 @@ export async function createTask(task: CreateTask): Promise<Task> {
 /**
  * Update an existing task
  *
+ * @param supabase - Supabase client instance
  * @param task_id - The UUID of the task to update
  * @param updates - The fields to update
  * @returns The updated task object
  * @throws {Error} If validation fails or database update fails
  *
  * @example
- * const updated = await updateTask('task-uuid', {
+ * const updated = await updateTask(supabase, 'task-uuid', {
  *   status: 'in_progress'
  * });
  */
 export async function updateTask(
+  supabase: SupabaseClient<Database>,
   task_id: string,
   updates: UpdateTask
 ): Promise<Task> {
@@ -207,6 +224,9 @@ export async function updateTask(
  * This marks a task as completed and optionally stores the form response.
  * It automatically logs the completion to action_history.
  *
+ * Note: Requires admin privileges for logging to action_history.
+ *
+ * @param supabase - Supabase client instance
  * @param task_id - The UUID of the task to complete
  * @param form_response - Optional form response data
  * @param user_id - The ID of the user completing the task
@@ -215,12 +235,13 @@ export async function updateTask(
  * @throws {Error} If task update fails
  *
  * @example
- * const completed = await completeTask('task-uuid', {
+ * const completed = await completeTask(supabase, 'task-uuid', {
  *   guest_count: 150,
  *   dietary_notes: 'Several vegetarian guests'
  * }, 'user-uuid', 'client');
  */
 export async function completeTask(
+  supabase: SupabaseClient<Database>,
   task_id: string,
   form_response: any,
   user_id: string,
@@ -247,8 +268,8 @@ export async function completeTask(
 
   const completedTask = TaskSchema.parse(data);
 
-  // Log the completion (using admin client)
-  await supabaseAdmin.from('action_history').insert({
+  // Log the completion
+  await supabase.from('action_history').insert({
     event_id: completedTask.event_id,
     user_id,
     user_type,
@@ -266,19 +287,21 @@ export async function completeTask(
 /**
  * Cancel a task
  *
+ * @param supabase - Supabase client instance
  * @param task_id - The UUID of the task to cancel
  * @param reason - Optional reason for cancellation
  * @returns The cancelled task object
  * @throws {Error} If task update fails
  *
  * @example
- * await cancelTask('task-uuid', 'Client already provided this information');
+ * await cancelTask(supabase, 'task-uuid', 'Client already provided this information');
  */
 export async function cancelTask(
+  supabase: SupabaseClient<Database>,
   task_id: string,
   reason?: string
 ): Promise<Task> {
-  return updateTask(task_id, { status: 'cancelled' });
+  return updateTask(supabase, task_id, { status: 'cancelled' });
 }
 
 /**
@@ -286,14 +309,16 @@ export async function cancelTask(
  *
  * Returns tasks that are past their due date and not completed.
  *
+ * @param supabase - Supabase client instance
  * @param assigned_to_id - Optional: filter by specific user
  * @returns Array of overdue tasks
  * @throws {Error} If database query fails
  *
  * @example
- * const overdue = await getOverdueTasks('user-uuid');
+ * const overdue = await getOverdueTasks(supabase, 'user-uuid');
  */
 export async function getOverdueTasks(
+  supabase: SupabaseClient<Database>,
   assigned_to_id?: string
 ): Promise<Task[]> {
   const now = new Date().toISOString();
@@ -316,7 +341,7 @@ export async function getOverdueTasks(
     throw new Error(`Failed to get overdue tasks: ${error.message}`);
   }
 
-  return data?.map((task) => TaskSchema.parse(task)) || [];
+  return data?.map((task: any) => TaskSchema.parse(task)) || [];
 }
 
 /**
@@ -324,15 +349,17 @@ export async function getOverdueTasks(
  *
  * Returns tasks due within the next N hours that are not completed.
  *
+ * @param supabase - Supabase client instance
  * @param hours - Number of hours to look ahead (default: 24)
  * @param assigned_to_id - Optional: filter by specific user
  * @returns Array of tasks due soon
  * @throws {Error} If database query fails
  *
  * @example
- * const dueSoon = await getTasksDueSoon(48, 'user-uuid');
+ * const dueSoon = await getTasksDueSoon(supabase, 48, 'user-uuid');
  */
 export async function getTasksDueSoon(
+  supabase: SupabaseClient<Database>,
   hours: number = 24,
   assigned_to_id?: string
 ): Promise<Task[]> {
@@ -358,7 +385,7 @@ export async function getTasksDueSoon(
     throw new Error(`Failed to get tasks due soon: ${error.message}`);
   }
 
-  return data?.map((task) => TaskSchema.parse(task)) || [];
+  return data?.map((task: any) => TaskSchema.parse(task)) || [];
 }
 
 /**
@@ -366,16 +393,18 @@ export async function getTasksDueSoon(
  *
  * Returns counts of tasks by status for a user.
  *
+ * @param supabase - Supabase client instance
  * @param assigned_to_id - The user ID
  * @param assigned_to_type - The user type
  * @returns Object with task counts by status
  * @throws {Error} If database query fails
  *
  * @example
- * const stats = await getTaskStats('user-uuid', 'client');
+ * const stats = await getTaskStats(supabase, 'user-uuid', 'client');
  * // Returns: { pending: 5, in_progress: 2, completed: 10, overdue: 1 }
  */
 export async function getTaskStats(
+  supabase: SupabaseClient<Database>,
   assigned_to_id: string,
   assigned_to_type: UserType
 ): Promise<{
@@ -402,7 +431,7 @@ export async function getTaskStats(
     overdue: 0,
   };
 
-  data?.forEach((task) => {
+  data?.forEach((task: any) => {
     if (task.status === 'completed') {
       stats.completed++;
     } else if (task.status === 'in_progress') {

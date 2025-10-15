@@ -5,7 +5,8 @@
  * All functions are designed to be callable by LLM agents as tools.
  */
 
-import { supabase } from './supabaseClient';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../supabase/database.types.gen';
 import {
   GuestSchema,
   CreateGuestSchema,
@@ -19,14 +20,15 @@ import {
 /**
  * Get a guest by ID
  *
+ * @param supabase - Supabase client instance
  * @param guest_id - The UUID of the guest to retrieve
  * @returns The guest object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const guest = await getGuest('guest-uuid');
+ * const guest = await getGuest(supabase, 'guest-uuid');
  */
-export async function getGuest(guest_id: string): Promise<Guest | null> {
+export async function getGuest(supabase: SupabaseClient<Database>, guest_id: string): Promise<Guest | null> {
   const { data, error } = await supabase
     .from('guests')
     .select('*')
@@ -44,16 +46,18 @@ export async function getGuest(guest_id: string): Promise<Guest | null> {
 /**
  * List guests for an event
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event
  * @param rsvp_status - Optional: filter by RSVP status
  * @returns Array of guests
  * @throws {Error} If the database query fails
  *
  * @example
- * const guests = await listGuests('event-uuid');
- * const confirmed = await listGuests('event-uuid', 'yes');
+ * const guests = await listGuests(supabase, 'event-uuid');
+ * const confirmed = await listGuests(supabase, 'event-uuid', 'yes');
  */
 export async function listGuests(
+  supabase: SupabaseClient<Database>,
   event_id: string,
   rsvp_status?: RSVPStatus
 ): Promise<Guest[]> {
@@ -73,25 +77,26 @@ export async function listGuests(
     throw new Error(`Failed to list guests: ${error.message}`);
   }
 
-  return data?.map((guest) => GuestSchema.parse(guest)) || [];
+  return data?.map((guest: any) => GuestSchema.parse(guest)) || [];
 }
 
 /**
  * Create a new guest
  *
+ * @param supabase - Supabase client instance
  * @param guest - The guest data to create
  * @returns The created guest object
  * @throws {Error} If validation fails or database insert fails
  *
  * @example
- * const guest = await createGuest({
+ * const guest = await createGuest(supabase, {
  *   event_id: 'event-uuid',
  *   name: 'John Doe',
  *   email: 'john@example.com',
  *   rsvp_status: 'undecided'
  * });
  */
-export async function createGuest(guest: CreateGuest): Promise<Guest> {
+export async function createGuest(supabase: SupabaseClient<Database>, guest: CreateGuest): Promise<Guest> {
   // Validate input
   const validated = CreateGuestSchema.parse(guest);
 
@@ -113,19 +118,20 @@ export async function createGuest(guest: CreateGuest): Promise<Guest> {
  *
  * Useful for bulk importing guests.
  *
+ * @param supabase - Supabase client instance
  * @param guests - Array of guest data to create
  * @returns Array of created guest objects
  * @throws {Error} If validation fails or database insert fails
  *
  * @example
- * const guests = await bulkCreateGuests([
+ * const guests = await bulkCreateGuests(supabase, [
  *   { event_id: 'event-uuid', name: 'John Doe', email: 'john@example.com' },
  *   { event_id: 'event-uuid', name: 'Jane Smith', email: 'jane@example.com' }
  * ]);
  */
-export async function bulkCreateGuests(guests: CreateGuest[]): Promise<Guest[]> {
+export async function bulkCreateGuests(supabase: SupabaseClient<Database>, guests: CreateGuest[]): Promise<Guest[]> {
   // Validate all inputs
-  const validated = guests.map((guest) => CreateGuestSchema.parse(guest));
+  const validated = guests.map((guest: any) => CreateGuestSchema.parse(guest));
 
   const { data, error } = await supabase
     .from('guests')
@@ -136,24 +142,26 @@ export async function bulkCreateGuests(guests: CreateGuest[]): Promise<Guest[]> 
     throw new Error(`Failed to create guests: ${error.message}`);
   }
 
-  return data?.map((guest) => GuestSchema.parse(guest)) || [];
+  return data?.map((guest: any) => GuestSchema.parse(guest)) || [];
 }
 
 /**
  * Update an existing guest
  *
+ * @param supabase - Supabase client instance
  * @param guest_id - The UUID of the guest to update
  * @param updates - The fields to update
  * @returns The updated guest object
  * @throws {Error} If validation fails or database update fails
  *
  * @example
- * const updated = await updateGuest('guest-uuid', {
+ * const updated = await updateGuest(supabase, 'guest-uuid', {
  *   rsvp_status: 'yes',
  *   dietary_restrictions: 'Vegetarian'
  * });
  */
 export async function updateGuest(
+  supabase: SupabaseClient<Database>,
   guest_id: string,
   updates: UpdateGuest
 ): Promise<Guest> {
@@ -177,14 +185,15 @@ export async function updateGuest(
 /**
  * Delete a guest
  *
+ * @param supabase - Supabase client instance
  * @param guest_id - The UUID of the guest to delete
  * @returns True if successful
  * @throws {Error} If database delete fails
  *
  * @example
- * await deleteGuest('guest-uuid');
+ * await deleteGuest(supabase, 'guest-uuid');
  */
-export async function deleteGuest(guest_id: string): Promise<boolean> {
+export async function deleteGuest(supabase: SupabaseClient<Database>, guest_id: string): Promise<boolean> {
   const { error } = await supabase
     .from('guests')
     .delete()
@@ -202,15 +211,16 @@ export async function deleteGuest(guest_id: string): Promise<boolean> {
  *
  * Returns counts by RSVP status and total expected attendance.
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event
  * @returns Object with guest statistics
  * @throws {Error} If database query fails
  *
  * @example
- * const stats = await getGuestStats('event-uuid');
+ * const stats = await getGuestStats(supabase, 'event-uuid');
  * // Returns: { total: 150, yes: 120, no: 10, undecided: 20, expected_attendance: 130 }
  */
-export async function getGuestStats(event_id: string): Promise<{
+export async function getGuestStats(supabase: SupabaseClient<Database>, event_id: string): Promise<{
   total: number;
   yes: number;
   no: number;
@@ -234,7 +244,7 @@ export async function getGuestStats(event_id: string): Promise<{
     expected_attendance: 0,
   };
 
-  data?.forEach((guest) => {
+  data?.forEach((guest: any) => {
     if (guest.rsvp_status === 'yes') {
       stats.yes++;
       stats.expected_attendance++; // Count the guest
@@ -256,14 +266,16 @@ export async function getGuestStats(event_id: string): Promise<{
  *
  * Returns all guests for an event who have specified dietary restrictions.
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event
  * @returns Array of guests with dietary restrictions
  * @throws {Error} If database query fails
  *
  * @example
- * const specialDiets = await getGuestsWithDietaryRestrictions('event-uuid');
+ * const specialDiets = await getGuestsWithDietaryRestrictions(supabase, 'event-uuid');
  */
 export async function getGuestsWithDietaryRestrictions(
+  supabase: SupabaseClient<Database>,
   event_id: string
 ): Promise<Guest[]> {
   const { data, error } = await supabase
@@ -277,21 +289,23 @@ export async function getGuestsWithDietaryRestrictions(
     throw new Error(`Failed to get guests with dietary restrictions: ${error.message}`);
   }
 
-  return data?.map((guest) => GuestSchema.parse(guest)) || [];
+  return data?.map((guest: any) => GuestSchema.parse(guest)) || [];
 }
 
 /**
  * Search guests by name or email
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event
  * @param search_term - The search term (matches name or email)
  * @returns Array of matching guests
  * @throws {Error} If database query fails
  *
  * @example
- * const results = await searchGuests('event-uuid', 'john');
+ * const results = await searchGuests(supabase, 'event-uuid', 'john');
  */
 export async function searchGuests(
+  supabase: SupabaseClient<Database>,
   event_id: string,
   search_term: string
 ): Promise<Guest[]> {
@@ -306,5 +320,5 @@ export async function searchGuests(
     throw new Error(`Failed to search guests: ${error.message}`);
   }
 
-  return data?.map((guest) => GuestSchema.parse(guest)) || [];
+  return data?.map((guest: any) => GuestSchema.parse(guest)) || [];
 }

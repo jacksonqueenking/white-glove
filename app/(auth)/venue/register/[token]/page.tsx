@@ -147,6 +147,8 @@ export default function VenueRegisterPage({
           state: formData.state,
           zip: formData.zip,
           description: formData.description,
+          spaces: formData.spaces,
+          offerings: formData.offerings,
         }),
       });
 
@@ -156,8 +158,6 @@ export default function VenueRegisterPage({
         throw new Error(result.error || 'Registration failed');
       }
 
-      // Now create spaces and offerings
-      // Note: You'll need to add API routes for these
       router.push(result.redirect || '/venue/dashboard');
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Registration failed');

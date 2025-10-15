@@ -75,6 +75,19 @@ export const venueRegistrationSchema = z.object({
   state: z.string().length(2, 'State must be 2 characters'),
   zip: z.string().regex(/^\d{5}(-\d{4})?$/, 'Valid ZIP code required'),
   description: z.string().min(10, 'Please provide a brief description'),
+  spaces: z.array(z.object({
+    name: z.string(),
+    description: z.string(),
+    capacity: z.number(),
+    main_image_url: z.string().optional(),
+  })).optional(),
+  offerings: z.array(z.object({
+    name: z.string(),
+    category: z.string(),
+    price: z.number(),
+    description: z.string(),
+    lead_time_days: z.number().optional(),
+  })).optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Passwords do not match',
   path: ['confirmPassword'],

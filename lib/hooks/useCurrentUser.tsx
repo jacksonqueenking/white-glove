@@ -35,9 +35,10 @@ export function useCurrentUser() {
 
         // Check which table the user exists in
         // Use maybeSingle() instead of single() to handle "not found" gracefully
+        // Note: venues table uses venue_id (references auth.users.id), not email
         const [clientRes, venueRes, vendorRes] = await Promise.all([
           supabase.from('clients').select('client_id').eq('email', authUser.email!).maybeSingle(),
-          supabase.from('venues').select('venue_id').eq('email', authUser.email!).maybeSingle(),
+          supabase.from('venues').select('venue_id').eq('venue_id', authUser.id).maybeSingle(),
           supabase.from('vendors').select('vendor_id').eq('email', authUser.email!).maybeSingle(),
         ]);
 

@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from "react";
-import { ChatHistoryList } from "../chat/ChatHistoryList";
+import { Sidebar } from "./Sidebar";
 import { useCurrentUser } from "../../lib/hooks/useCurrentUser";
 import { useParams } from "next/navigation";
 
@@ -15,11 +15,14 @@ interface AppShellProps {
   mode: "client" | "venue" | "vendor";
 }
 
-// Unified application shell with Claude-style navigation, anchored chat, and content pane.
+// Unified application shell with navigation sidebar, optional chat panel, and content area.
 export function AppShell({ children, mode }: AppShellProps) {
   const { user, loading } = useCurrentUser();
   const params = useParams();
   const eventId = params?.eventId as string | undefined;
+
+  // Only show chat panel on event detail pages
+  const showChatPanel = eventId !== undefined;
 
   // Render appropriate chat component based on mode and context
   const renderChatComponent = () => {
@@ -39,39 +42,26 @@ export function AppShell({ children, mode }: AppShellProps) {
       );
     }
 
-    if (mode === "client" && user.type === "client") {
-      if (eventId) {
-        return <ClientEventChat clientId={user.clientId!} eventId={eventId} className="h-full" />;
-      }
-      return (
-        <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[#8e806c]">
-          Select an event to chat with your assistant
-        </div>
-      );
+    if (mode === "client" && user.type === "client" && eventId) {
+      return <ClientEventChat clientId={user.clientId!} eventId={eventId} className="h-full" />;
     }
 
-    if (mode === "venue" && user.type === "venue") {
-      if (eventId) {
-        return <VenueEventChat venueId={user.venueId!} eventId={eventId} className="h-full" />;
-      }
-      return <VenueGeneralChat venueId={user.venueId!} className="h-full" />;
+    if (mode === "venue" && user.type === "venue" && eventId) {
+      return <VenueEventChat venueId={user.venueId!} eventId={eventId} className="h-full" />;
     }
 
-    // Fallback for vendors or other cases
-    return (
-      <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[#8e806c]">
-        Chat not available
-      </div>
-    );
+    return null;
   };
 
   return (
     <div className="app-shell fixed inset-0 flex bg-[#f8f4ec]">
-      <ChatHistoryList />
+      <Sidebar />
       <section className="flex flex-1 min-w-0">
-        <aside className="flex w-[420px] flex-col border-r border-[#e7dfd4] bg-[#f8f4ec]">
-          {renderChatComponent()}
-        </aside>
+        {showChatPanel && (
+          <aside className="flex w-[420px] flex-col border-r border-[#e7dfd4] bg-[#f8f4ec]">
+            {renderChatComponent()}
+          </aside>
+        )}
         <main className="flex-1 overflow-y-auto bg-[#fefbf5] px-12 py-12">{children}</main>
       </section>
     </div>

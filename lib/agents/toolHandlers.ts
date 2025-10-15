@@ -6,7 +6,8 @@
  */
 
 import { z } from 'zod';
-import { supabase, supabaseAdmin } from '../db/supabaseClient';
+import { createClient } from '../supabase/client';
+import { createServiceClient } from '../supabase/server';
 
 // Import database functions
 import { getElement, isElementAvailable, searchElements } from '../db/elements';
@@ -30,12 +31,14 @@ interface ToolHandler {
 
 export const clientToolHandlers: Record<string, ToolHandler> = {
   async get_element_details(params, context) {
+    const supabase = createClient();
     const { element_id } = z.object({ element_id: z.string().uuid() }).parse(params);
-    const element = await getElement(element_id);
+    const element = await getElement(supabase, element_id);
     return element;
   },
 
   async add_element_to_event(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       event_id: z.string().uuid(),
       element_id: z.string().uuid(),
@@ -44,22 +47,22 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
     const validated = schema.parse(params);
 
     // Verify client owns this event
-    const event = await getEvent(validated.event_id);
+    const event = await getEvent(supabase, validated.event_id);
     if (!event || event.client_id !== context.userId) {
       throw new Error('Unauthorized: Event does not belong to this client');
     }
 
     // Get element to get base price
-    const element = await getElement(validated.element_id);
+    const element = await getElement(supabase, validated.element_id);
     if (!element) throw new Error('Element not found');
 
     // Check availability
-    const available = await isElementAvailable(validated.element_id, event.date);
+    const available = await isElementAvailable(supabase, validated.element_id, event.date);
     if (!available) {
       throw new Error('Element is not available for this date');
     }
 
-    const result = await addElementToEvent({
+    const result = await addElementToEvent(supabase, {
       event_id: validated.event_id,
       element_id: validated.element_id,
       amount: element.price,
@@ -72,6 +75,7 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
   },
 
   async request_element_change(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       event_element_id: z.string().uuid(),
       change_description: z.string(),
@@ -91,7 +95,7 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
     }
 
     // Create task for venue to handle the change request
-    const task = await createTask({
+    const task = await createTask(supabase, {
       event_id: eventElement.event_id,
       assigned_to_id: eventElement.events.venue_id,
       assigned_to_type: 'venue',
@@ -106,6 +110,7 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
   },
 
   async add_guest(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       event_id: z.string().uuid(),
       name: z.string(),
@@ -117,12 +122,12 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
     const validated = schema.parse(params);
 
     // Verify client owns event
-    const event = await getEvent(validated.event_id);
+    const event = await getEvent(supabase, validated.event_id);
     if (!event || event.client_id !== context.userId) {
       throw new Error('Unauthorized');
     }
 
-    const guest = await createGuest({
+    const guest = await createGuest(supabase, {
       ...validated,
       rsvp_status: 'undecided',
       plus_one: validated.plus_one ?? false,
@@ -132,6 +137,7 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
   },
 
   async update_guest(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       guest_id: z.string().uuid(),
       name: z.string().optional(),
@@ -154,11 +160,12 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
     }
 
     const { guest_id, ...updates } = validated;
-    const updated = await updateGuest(guest_id, updates);
+    const updated = await updateGuest(supabase, guest_id, updates);
     return updated;
   },
 
   async remove_guest(params, context) {
+    const supabase = createClient();
     const { guest_id } = z.object({ guest_id: z.string().uuid() }).parse(params);
 
     // Verify ownership
@@ -172,14 +179,15 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
       throw new Error('Unauthorized');
     }
 
-    await deleteGuest(guest_id);
+    await deleteGuest(supabase, guest_id);
     return { success: true };
   },
 
   async get_task_details(params, context) {
+    const supabase = createClient();
     const { task_id } = z.object({ task_id: z.string().uuid() }).parse(params);
 
-    const task = await getTask(task_id);
+    const task = await getTask(supabase, task_id);
     if (!task || task.assigned_to_id !== context.userId) {
       throw new Error('Unauthorized');
     }
@@ -188,18 +196,20 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
   },
 
   async complete_task(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       task_id: z.string().uuid(),
       form_response: z.any().optional(),
     });
     const validated = schema.parse(params);
 
-    const task = await getTask(validated.task_id);
+    const task = await getTask(supabase, validated.task_id);
     if (!task || task.assigned_to_id !== context.userId) {
       throw new Error('Unauthorized');
     }
 
     const completed = await completeTask(
+      supabase,
       validated.task_id,
       validated.form_response,
       context.userId,
@@ -210,6 +220,7 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
   },
 
   async send_message_to_venue(params, context) {
+    const supabase = createClient();
     const schema = z.object({
       event_id: z.string().uuid(),
       content: z.string(),
@@ -218,7 +229,7 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
     const validated = schema.parse(params);
 
     // Verify client owns event
-    const event = await getEvent(validated.event_id);
+    const event = await getEvent(supabase, validated.event_id);
     if (!event || event.client_id !== context.userId) {
       throw new Error('Unauthorized');
     }
@@ -226,7 +237,7 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
     // Create or get thread ID (simplified - use event_id as thread_id for now)
     const threadId = `event-${validated.event_id}`;
 
-    const message = await sendMessage({
+    const message = await sendMessage(supabase, {
       thread_id: threadId,
       event_id: validated.event_id,
       sender_id: context.userId,

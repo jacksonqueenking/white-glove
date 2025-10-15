@@ -5,19 +5,21 @@
  * All functions are designed to be callable by LLM agents as tools.
  */
 
-import { supabase } from './supabaseClient';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../supabase/database.types.gen';
 
 /**
  * Get a chat by ID
  *
+ * @param supabase - Supabase client instance
  * @param chat_id - The UUID of the chat to retrieve
  * @returns The chat object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const chat = await getChat('chat-uuid');
+ * const chat = await getChat(supabase, 'chat-uuid');
  */
-export async function getChat(chat_id: string): Promise<any | null> {
+export async function getChat(supabase: SupabaseClient<Database>, chat_id: string): Promise<any | null> {
   const { data, error } = await supabase
     .from('chats')
     .select('*')
@@ -35,6 +37,7 @@ export async function getChat(chat_id: string): Promise<any | null> {
 /**
  * List chats for a user
  *
+ * @param supabase - Supabase client instance
  * @param user_id - The UUID of the user
  * @param user_type - The type of user ('client' or 'venue')
  * @param include_archived - Include archived chats (default: false)
@@ -42,9 +45,10 @@ export async function getChat(chat_id: string): Promise<any | null> {
  * @throws {Error} If the database query fails
  *
  * @example
- * const chats = await listUserChats('user-uuid', 'client');
+ * const chats = await listUserChats(supabase, 'user-uuid', 'client');
  */
 export async function listUserChats(
+  supabase: SupabaseClient<Database>,
   user_id: string,
   user_type: 'client' | 'venue',
   include_archived: boolean = false
@@ -74,14 +78,15 @@ export async function listUserChats(
  *
  * Returns all chat conversations related to a specific event.
  *
+ * @param supabase - Supabase client instance
  * @param event_id - The UUID of the event
  * @returns Array of chats
  * @throws {Error} If the database query fails
  *
  * @example
- * const eventChats = await getEventChats('event-uuid');
+ * const eventChats = await getEventChats(supabase, 'event-uuid');
  */
-export async function getEventChats(event_id: string): Promise<any[]> {
+export async function getEventChats(supabase: SupabaseClient<Database>, event_id: string): Promise<any[]> {
   const { data, error } = await supabase
     .from('chats')
     .select('*')
@@ -98,19 +103,20 @@ export async function getEventChats(event_id: string): Promise<any[]> {
 /**
  * Create a new chat
  *
+ * @param supabase - Supabase client instance
  * @param chat - The chat data to create
  * @returns The created chat object
  * @throws {Error} If database insert fails
  *
  * @example
- * const newChat = await createChat({
+ * const newChat = await createChat(supabase, {
  *   user_id: 'user-uuid',
  *   user_type: 'client',
  *   event_id: 'event-uuid',
  *   messages: []
  * });
  */
-export async function createChat(chat: {
+export async function createChat(supabase: SupabaseClient<Database>, chat: {
   user_id: string;
   user_type: 'client' | 'venue';
   event_id?: string;
@@ -138,19 +144,21 @@ export async function createChat(chat: {
  *
  * Appends a new message to the chat's messages array.
  *
+ * @param supabase - Supabase client instance
  * @param chat_id - The UUID of the chat
  * @param message - The message to add
  * @returns The updated chat object
  * @throws {Error} If update fails
  *
  * @example
- * await addMessageToChat('chat-uuid', {
+ * await addMessageToChat(supabase, 'chat-uuid', {
  *   role: 'user',
  *   content: 'I need help planning my wedding',
  *   timestamp: new Date().toISOString()
  * });
  */
 export async function addMessageToChat(
+  supabase: SupabaseClient<Database>,
   chat_id: string,
   message: {
     role: 'user' | 'assistant';
@@ -159,7 +167,7 @@ export async function addMessageToChat(
     tool_calls?: any[];
   }
 ): Promise<any> {
-  const chat = await getChat(chat_id);
+  const chat = await getChat(supabase, chat_id);
   if (!chat) {
     throw new Error('Chat not found');
   }
@@ -186,14 +194,15 @@ export async function addMessageToChat(
 /**
  * Archive a chat
  *
+ * @param supabase - Supabase client instance
  * @param chat_id - The UUID of the chat to archive
  * @returns True if successful
  * @throws {Error} If update fails
  *
  * @example
- * await archiveChat('chat-uuid');
+ * await archiveChat(supabase, 'chat-uuid');
  */
-export async function archiveChat(chat_id: string): Promise<boolean> {
+export async function archiveChat(supabase: SupabaseClient<Database>, chat_id: string): Promise<boolean> {
   const { error } = await supabase
     .from('chats')
     .update({ archived: true })
@@ -209,14 +218,15 @@ export async function archiveChat(chat_id: string): Promise<boolean> {
 /**
  * Unarchive a chat
  *
+ * @param supabase - Supabase client instance
  * @param chat_id - The UUID of the chat to unarchive
  * @returns True if successful
  * @throws {Error} If update fails
  *
  * @example
- * await unarchiveChat('chat-uuid');
+ * await unarchiveChat(supabase, 'chat-uuid');
  */
-export async function unarchiveChat(chat_id: string): Promise<boolean> {
+export async function unarchiveChat(supabase: SupabaseClient<Database>, chat_id: string): Promise<boolean> {
   const { error } = await supabase
     .from('chats')
     .update({ archived: false })
@@ -234,14 +244,15 @@ export async function unarchiveChat(chat_id: string): Promise<boolean> {
  *
  * Permanently deletes a chat and all its messages.
  *
+ * @param supabase - Supabase client instance
  * @param chat_id - The UUID of the chat to delete
  * @returns True if successful
  * @throws {Error} If delete fails
  *
  * @example
- * await deleteChat('chat-uuid');
+ * await deleteChat(supabase, 'chat-uuid');
  */
-export async function deleteChat(chat_id: string): Promise<boolean> {
+export async function deleteChat(supabase: SupabaseClient<Database>, chat_id: string): Promise<boolean> {
   const { error } = await supabase
     .from('chats')
     .delete()
@@ -259,6 +270,7 @@ export async function deleteChat(chat_id: string): Promise<boolean> {
  *
  * Returns existing chat or creates a new one if none exists.
  *
+ * @param supabase - Supabase client instance
  * @param user_id - The UUID of the user
  * @param user_type - The type of user
  * @param event_id - The UUID of the event
@@ -266,9 +278,10 @@ export async function deleteChat(chat_id: string): Promise<boolean> {
  * @throws {Error} If query or insert fails
  *
  * @example
- * const chat = await getOrCreateEventChat('user-uuid', 'client', 'event-uuid');
+ * const chat = await getOrCreateEventChat(supabase, 'user-uuid', 'client', 'event-uuid');
  */
 export async function getOrCreateEventChat(
+  supabase: SupabaseClient<Database>,
   user_id: string,
   user_type: 'client' | 'venue',
   event_id: string
@@ -287,7 +300,7 @@ export async function getOrCreateEventChat(
   }
 
   // Create new chat if none exists
-  return createChat({
+  return createChat(supabase, {
     user_id,
     user_type,
     event_id,

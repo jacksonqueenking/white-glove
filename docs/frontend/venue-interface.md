@@ -85,20 +85,20 @@ The venue interface is designed for professional event coordinators managing mul
 **Layout:**
 ```
 ┌─────────────────────────────────────────┐
-│ Spaces                      [+ New Space]│
+│ Spaces                     [+ New Space]│
 ├─────────────────────────────────────────┤
 │                                         │
 │ ┌─────────────────────────────────────┐ │
 │ │ [Image]  Main Ballroom              │ │
 │ │          Capacity: 150              │ │
-│ │          5 upcoming events           │ │
+│ │          5 upcoming events          │ │
 │ │                          [Edit]     │ │
 │ └─────────────────────────────────────┘ │
 │                                         │
 │ ┌─────────────────────────────────────┐ │
 │ │ [Image]  Garden Terrace             │ │
 │ │          Capacity: 80               │ │
-│ │          2 upcoming events           │ │
+│ │          2 upcoming events          │ │
 │ │                          [Edit]     │ │
 │ └─────────────────────────────────────┘ │
 │                                         │

@@ -5,7 +5,8 @@
  * All functions are designed to be callable by LLM agents as tools.
  */
 
-import { supabase, supabaseAdmin } from './supabaseClient';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../supabase/database.types.gen';
 import {
   VenueSchema,
   CreateVenueSchema,
@@ -18,14 +19,18 @@ import {
 /**
  * Get a venue by ID
  *
+ * @param supabase - Supabase client instance
  * @param venue_id - The UUID of the venue to retrieve
  * @returns The venue object or null if not found
  * @throws {Error} If the database query fails
  *
  * @example
- * const venue = await getVenue('venue-uuid');
+ * const venue = await getVenue(supabase, 'venue-uuid');
  */
-export async function getVenue(venue_id: string): Promise<Venue | null> {
+export async function getVenue(
+  supabase: SupabaseClient<Database>,
+  venue_id: string
+): Promise<Venue | null> {
   const { data, error } = await supabase
     .from('venues')
     .select('*')
@@ -44,6 +49,7 @@ export async function getVenue(venue_id: string): Promise<Venue | null> {
 /**
  * List all venues
  *
+ * @param supabase - Supabase client instance
  * @param params - Filter parameters
  * @param params.limit - Maximum number of venues to return (default: 50)
  * @param params.offset - Number of venues to skip (for pagination)
@@ -51,12 +57,15 @@ export async function getVenue(venue_id: string): Promise<Venue | null> {
  * @throws {Error} If the database query fails
  *
  * @example
- * const venues = await listVenues({ limit: 10 });
+ * const venues = await listVenues(supabase, { limit: 10 });
  */
-export async function listVenues(params?: {
-  limit?: number;
-  offset?: number;
-}): Promise<Venue[]> {
+export async function listVenues(
+  supabase: SupabaseClient<Database>,
+  params?: {
+    limit?: number;
+    offset?: number;
+  }
+): Promise<Venue[]> {
   let query = supabase
     .from('venues')
     .select('*')
@@ -77,7 +86,7 @@ export async function listVenues(params?: {
     throw new Error(`Failed to list venues: ${error.message}`);
   }
 
-  return data?.map((venue) => VenueSchema.parse(venue)) || [];
+  return data?.map((venue: any) => VenueSchema.parse(venue)) || [];
 }
 
 /**
@@ -85,13 +94,15 @@ export async function listVenues(params?: {
  *
  * This should be called after a venue user signs up via Supabase Auth.
  * The venue_id should match the auth.users.id.
+ * Note: This function requires admin privileges (service role key).
  *
+ * @param supabase - Supabase client instance (must be admin/service role client)
  * @param venue - The venue data to create
  * @returns The created venue object
  * @throws {Error} If validation fails or database insert fails
  *
  * @example
- * const newVenue = await createVenue({
+ * const newVenue = await createVenue(supabaseAdmin, {
  *   venue_id: authUser.id,
  *   name: 'The Grand Ballroom',
  *   description: 'Elegant event space in downtown',
@@ -104,11 +115,14 @@ export async function listVenues(params?: {
  *   }
  * });
  */
-export async function createVenue(venue: CreateVenue): Promise<Venue> {
+export async function createVenue(
+  supabase: SupabaseClient<Database>,
+  venue: CreateVenue
+): Promise<Venue> {
   // Validate input
   const validated = CreateVenueSchema.parse(venue);
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from('venues')
     .insert(validated as any)
     .select()
@@ -124,17 +138,19 @@ export async function createVenue(venue: CreateVenue): Promise<Venue> {
 /**
  * Update an existing venue
  *
+ * @param supabase - Supabase client instance
  * @param venue_id - The UUID of the venue to update
  * @param updates - The fields to update
  * @returns The updated venue object
  * @throws {Error} If validation fails or database update fails
  *
  * @example
- * const updated = await updateVenue('venue-uuid', {
+ * const updated = await updateVenue(supabase, 'venue-uuid', {
  *   description: 'Updated description with new amenities'
  * });
  */
 export async function updateVenue(
+  supabase: SupabaseClient<Database>,
   venue_id: string,
   updates: UpdateVenue
 ): Promise<Venue> {
@@ -159,14 +175,18 @@ export async function updateVenue(
 /**
  * Soft delete a venue (sets deleted_at timestamp)
  *
+ * @param supabase - Supabase client instance
  * @param venue_id - The UUID of the venue to delete
  * @returns True if successful
  * @throws {Error} If database update fails
  *
  * @example
- * await deleteVenue('venue-uuid');
+ * await deleteVenue(supabase, 'venue-uuid');
  */
-export async function deleteVenue(venue_id: string): Promise<boolean> {
+export async function deleteVenue(
+  supabase: SupabaseClient<Database>,
+  venue_id: string
+): Promise<boolean> {
   const { error } = await supabase
     .from('venues')
     .update({ deleted_at: new Date().toISOString() })
@@ -182,16 +202,18 @@ export async function deleteVenue(venue_id: string): Promise<boolean> {
 /**
  * Get total number of events for a venue
  *
+ * @param supabase - Supabase client instance
  * @param venue_id - The UUID of the venue
  * @param status - Optional: filter by event status
  * @returns Count of events
  * @throws {Error} If database query fails
  *
  * @example
- * const totalEvents = await getVenueEventCount('venue-uuid');
- * const confirmedEvents = await getVenueEventCount('venue-uuid', 'confirmed');
+ * const totalEvents = await getVenueEventCount(supabase, 'venue-uuid');
+ * const confirmedEvents = await getVenueEventCount(supabase, 'venue-uuid', 'confirmed');
  */
 export async function getVenueEventCount(
+  supabase: SupabaseClient<Database>,
   venue_id: string,
   status?: string
 ): Promise<number> {
@@ -217,14 +239,18 @@ export async function getVenueEventCount(
 /**
  * Get total number of spaces for a venue
  *
+ * @param supabase - Supabase client instance
  * @param venue_id - The UUID of the venue
  * @returns Count of spaces
  * @throws {Error} If database query fails
  *
  * @example
- * const spaceCount = await getVenueSpaceCount('venue-uuid');
+ * const spaceCount = await getVenueSpaceCount(supabase, 'venue-uuid');
  */
-export async function getVenueSpaceCount(venue_id: string): Promise<number> {
+export async function getVenueSpaceCount(
+  supabase: SupabaseClient<Database>,
+  venue_id: string
+): Promise<number> {
   const { count, error } = await supabase
     .from('spaces')
     .select('*', { count: 'exact', head: true })
@@ -243,15 +269,19 @@ export async function getVenueSpaceCount(venue_id: string): Promise<number> {
  *
  * Returns counts of events, spaces, and vendors.
  *
+ * @param supabase - Supabase client instance
  * @param venue_id - The UUID of the venue
  * @returns Object with venue statistics
  * @throws {Error} If database query fails
  *
  * @example
- * const stats = await getVenueStats('venue-uuid');
+ * const stats = await getVenueStats(supabase, 'venue-uuid');
  * // { total_events: 50, upcoming_events: 10, spaces: 5, vendors: 15 }
  */
-export async function getVenueStats(venue_id: string): Promise<{
+export async function getVenueStats(
+  supabase: SupabaseClient<Database>,
+  venue_id: string
+): Promise<{
   total_events: number;
   upcoming_events: number;
   spaces: number;
@@ -299,16 +329,18 @@ export async function getVenueStats(venue_id: string): Promise<{
 /**
  * Search venues by name or location
  *
+ * @param supabase - Supabase client instance
  * @param search_term - The search term (matches name, city, or state)
  * @param limit - Maximum number of results (default: 20)
  * @returns Array of matching venues
  * @throws {Error} If database query fails
  *
  * @example
- * const results = await searchVenues('grand');
- * const sfVenues = await searchVenues('san francisco');
+ * const results = await searchVenues(supabase, 'grand');
+ * const sfVenues = await searchVenues(supabase, 'san francisco');
  */
 export async function searchVenues(
+  supabase: SupabaseClient<Database>,
   search_term: string,
   limit: number = 20
 ): Promise<Venue[]> {
@@ -324,5 +356,5 @@ export async function searchVenues(
     throw new Error(`Failed to search venues: ${error.message}`);
   }
 
-  return data?.map((venue) => VenueSchema.parse(venue)) || [];
+  return data?.map((venue: any) => VenueSchema.parse(venue)) || [];
 }
