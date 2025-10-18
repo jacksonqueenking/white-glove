@@ -75,12 +75,12 @@ function LoginForm() {
       // If they have multiple events (or none), redirect to dashboard
       if (!redirectTo && userType === 'client') {
         try {
-          const eventResponse = await fetch('/api/client/event');
+          const eventResponse = await fetch('/api/client/events');
           if (eventResponse.ok) {
             const eventData = await eventResponse.json();
             if (eventData.event) {
               // Client has exactly one event
-              destination = `/client/event/${eventData.event.event_id}`;
+              destination = `/client/events/${eventData.event.event_id}`;
             } else {
               // Client has 0 or multiple events
               destination = '/client/dashboard';

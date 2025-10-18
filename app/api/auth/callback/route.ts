@@ -35,7 +35,7 @@ export async function GET(request: Request) {
           const event = await getClientEvent(supabase, data.user.id);
           if (event) {
             // Client has exactly one event - redirect to that event page
-            return NextResponse.redirect(new URL(`/client/event/${event.event_id}`, requestUrl.origin));
+            return NextResponse.redirect(new URL(`/client/events/${event.event_id}`, requestUrl.origin));
           } else {
             // Client has 0 or multiple events - redirect to dashboard
             return NextResponse.redirect(new URL('/client/dashboard', requestUrl.origin));
