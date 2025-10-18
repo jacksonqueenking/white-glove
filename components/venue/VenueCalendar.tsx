@@ -159,13 +159,13 @@ export function VenueCalendar() {
         <div className="flex items-center gap-4">
           <h2 className="text-xl font-semibold text-slate-900">{monthName}</h2>
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={previousMonth}>
+            <Button variant="secondary" onClick={previousMonth}>
               ←
             </Button>
-            <Button variant="secondary" size="sm" onClick={goToToday}>
+            <Button variant="secondary" onClick={goToToday}>
               Today
             </Button>
-            <Button variant="secondary" size="sm" onClick={nextMonth}>
+            <Button variant="secondary" onClick={nextMonth}>
               →
             </Button>
           </div>
@@ -174,14 +174,12 @@ export function VenueCalendar() {
         <div className="flex gap-2">
           <Button
             variant={view === 'month' ? 'primary' : 'secondary'}
-            size="sm"
             onClick={() => setView('month')}
           >
             Month
           </Button>
           <Button
             variant={view === 'week' ? 'primary' : 'secondary'}
-            size="sm"
             onClick={() => setView('week')}
             disabled
           >
@@ -189,7 +187,6 @@ export function VenueCalendar() {
           </Button>
           <Button
             variant={view === 'day' ? 'primary' : 'secondary'}
-            size="sm"
             onClick={() => setView('day')}
             disabled
           >

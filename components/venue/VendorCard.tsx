@@ -54,10 +54,10 @@ export function VendorCard({ vendor }: VendorCardProps) {
       </div>
 
       <div className="flex gap-2">
-        <Button variant="secondary" size="sm" className="flex-1">
+        <Button variant="secondary" className="flex-1">
           View
         </Button>
-        <Button variant="secondary" size="sm" className="flex-1">
+        <Button variant="secondary" className="flex-1">
           Message
         </Button>
       </div>

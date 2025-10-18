@@ -45,14 +45,16 @@ export function OfferingModal({ offering, venueVendorId, onClose, onSaved }: Off
         price: parseFloat(formData.price),
         description: formData.description || undefined,
         image_url: formData.image_url || undefined,
+        files: [],
         availability_rules: {
           lead_time_days: parseInt(formData.lead_time_days),
         },
       };
 
       if (offering) {
-        // Update existing offering
-        await updateElement(supabase, offering.element_id, elementData);
+        // Update existing offering - exclude venue_vendor_id and files as they shouldn't change
+        const { venue_vendor_id, files, ...updateData } = elementData;
+        await updateElement(supabase, offering.element_id, updateData);
       } else {
         // Create new offering
         await createElement(supabase, elementData);
@@ -165,15 +167,19 @@ export function OfferingModal({ offering, venueVendorId, onClose, onSaved }: Off
               placeholder="https://example.com/image.jpg"
             />
 
-            <FormInput
-              label="Lead Time (days)"
-              type="number"
-              value={formData.lead_time_days}
-              onChange={(e) => setFormData({ ...formData, lead_time_days: e.target.value })}
-              min="0"
-              placeholder="7"
-              help="Minimum days notice required to book this offering"
-            />
+            <div>
+              <FormInput
+                label="Lead Time (days)"
+                type="number"
+                value={formData.lead_time_days}
+                onChange={(e) => setFormData({ ...formData, lead_time_days: e.target.value })}
+                min="0"
+                placeholder="7"
+              />
+              <p className="mt-1 text-sm text-slate-500">
+                Minimum days notice required to book this offering
+              </p>
+            </div>
 
             <div className="rounded-md bg-blue-50 border border-blue-200 p-4">
               <p className="text-sm text-blue-800">

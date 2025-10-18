@@ -51,7 +51,7 @@ export function SpaceCard({ space, onEdit }: SpaceCardProps) {
         )}
 
         <div className="flex justify-end pt-3 border-t border-slate-100">
-          <Button variant="secondary" size="sm" onClick={() => onEdit(space)}>
+          <Button variant="secondary" onClick={() => onEdit(space)}>
             Edit
           </Button>
         </div>

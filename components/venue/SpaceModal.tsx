@@ -40,11 +40,13 @@ export function SpaceModal({ space, venueId, onClose, onSaved }: SpaceModalProps
         description: formData.description || undefined,
         capacity: formData.capacity ? parseInt(formData.capacity) : undefined,
         main_image_url: formData.main_image_url || undefined,
+        photos: [],
       };
 
       if (space) {
-        // Update existing space
-        await updateSpace(supabase, space.space_id, spaceData);
+        // Update existing space - exclude venue_id as it shouldn't change
+        const { venue_id, ...updateData } = spaceData;
+        await updateSpace(supabase, space.space_id, updateData);
       } else {
         // Create new space
         await createSpace(supabase, spaceData);
