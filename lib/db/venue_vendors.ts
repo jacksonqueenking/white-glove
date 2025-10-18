@@ -77,7 +77,7 @@ export async function getVenueVendor(
     throw new Error(`Failed to get venue vendor: ${error.message}`);
   }
 
-  return data;
+  return data as VenueVendor;
 }
 
 /**
@@ -116,7 +116,7 @@ export async function createVenueVendor(
     throw new Error(`Failed to create venue vendor: ${error.message}`);
   }
 
-  return data;
+  return data as VenueVendor;
 }
 
 /**
@@ -149,7 +149,7 @@ export async function updateVenueVendorStatus(
     throw new Error(`Failed to update venue vendor status: ${error.message}`);
   }
 
-  return data;
+  return data as VenueVendor;
 }
 
 /**
