@@ -67,9 +67,31 @@ function LoginForm() {
         throw new Error(data.error || 'Failed to sign in');
       }
 
-      // Redirect to appropriate base route
+      // Handle redirect
       const userType = data.user?.user_metadata?.user_type || 'client';
-      const destination = redirectTo || `/${userType}`;
+      let destination = redirectTo || `/${userType}`;
+
+      // For clients, redirect to their event page if they have exactly one event
+      // If they have multiple events (or none), redirect to dashboard
+      if (!redirectTo && userType === 'client') {
+        try {
+          const eventResponse = await fetch('/api/client/event');
+          if (eventResponse.ok) {
+            const eventData = await eventResponse.json();
+            if (eventData.event) {
+              // Client has exactly one event
+              destination = `/client/event/${eventData.event.event_id}`;
+            } else {
+              // Client has 0 or multiple events
+              destination = '/client/dashboard';
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching client event:', err);
+          // Fall through to default destination
+        }
+      }
+
       router.push(destination);
       router.refresh(); // Force refresh to pick up new session
     } catch (err: any) {

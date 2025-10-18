@@ -50,7 +50,7 @@ export function Sidebar() {
   const isVenuePath = pathname?.startsWith('/venue');
   const isClientPath = pathname?.startsWith('/client');
 
-  let navItems = [];
+  let navItems: typeof VENUE_NAV_ITEMS = [];
   let portalLabel = "Portal";
 
   // Show navigation based on path, even if user is still loading

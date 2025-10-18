@@ -18,11 +18,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get venue ID from user email
+    // Get venue ID - it should match the user ID
     const { data: venueData } = await supabase
       .from('venues')
       .select('venue_id')
-      .eq('email', user.email)
+      .eq('venue_id', user.id)
       .single();
 
     if (!venueData) {

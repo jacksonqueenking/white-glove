@@ -57,7 +57,7 @@ export function OfferingCard({ offering, onEdit }: OfferingCardProps) {
         )}
 
         <div className="flex justify-end pt-3 border-t border-slate-100">
-          <Button variant="secondary" size="sm" onClick={() => onEdit(offering)}>
+          <Button variant="secondary" onClick={() => onEdit(offering)}>
             Edit
           </Button>
         </div>

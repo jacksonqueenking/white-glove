@@ -331,3 +331,59 @@ export async function getClientEventCount(
 
   return count || 0;
 }
+
+/**
+ * Get the client's primary event
+ *
+ * Returns the most recent active event for the client if they have exactly one event.
+ * If they have multiple events, returns null (indicating they should see their events list).
+ *
+ * @param supabase - Supabase client instance
+ * @param client_id - The UUID of the client
+ * @returns The event object (if single event), null if no events or multiple events
+ * @throws {Error} If database query fails
+ *
+ * @example
+ * const event = await getClientEvent(supabase, 'client-uuid');
+ * if (event) {
+ *   console.log(`Single event - redirect to: /client/event/${event.event_id}`);
+ * } else {
+ *   console.log('Multiple events or none - redirect to: /client/dashboard');
+ * }
+ */
+export async function getClientEvent(
+  supabase: SupabaseClient<Database>,
+  client_id: string
+): Promise<{ event_id: string; name: string; date: string; status: string } | null> {
+  // First, count how many active events the client has
+  const { count, error: countError } = await supabase
+    .from('events')
+    .select('*', { count: 'exact', head: true })
+    .eq('client_id', client_id)
+    .is('deleted_at', null)
+    .in('status', ['confirmed', 'pending_confirmation']);
+
+  if (countError) {
+    throw new Error(`Failed to count client events: ${countError.message}`);
+  }
+
+  // If they have 0 or more than 1 event, return null
+  if (!count || count !== 1) {
+    return null;
+  }
+
+  // If they have exactly 1 event, return it
+  const { data, error } = await supabase
+    .from('events')
+    .select('event_id, name, date, status')
+    .eq('client_id', client_id)
+    .is('deleted_at', null)
+    .in('status', ['confirmed', 'pending_confirmation'])
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to get client event: ${error.message}`);
+  }
+
+  return data;
+}
