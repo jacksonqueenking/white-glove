@@ -5,7 +5,10 @@ import type { Database } from '@/lib/supabase/database.types.gen';
 import type { UserType, Address } from './validation';
 import type { AuthResponse } from './types';
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+// Use Vercel's URL for deployments, fallback to custom URL or localhost
+const BASE_URL = process.env.NEXT_PUBLIC_VERCEL_URL
+  ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+  : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 /**
  * Send magic link for passwordless authentication
