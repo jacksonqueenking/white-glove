@@ -61,6 +61,9 @@ export function EventsOverview() {
         })(),
       ]);
 
+      console.log('Events data loaded:', eventsData.length, eventsData);
+      console.log('Spaces data loaded:', spacesData.length, spacesData);
+
       // Create space mapping
       const spaceMap = Object.fromEntries(
         spacesData.map((s) => [s.space_id, s.name])
@@ -90,7 +93,7 @@ export function EventsOverview() {
           event_id: event.event_id,
           name: event.name,
           date: dateStr,
-          space: spaceMap[event.venue_id] || 'Unknown Space',
+          space: 'TBD', // TODO: Load event_spaces to get actual space name
           status: displayStatus,
           attention_items: [], // TODO: Get from tasks
         };

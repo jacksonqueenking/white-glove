@@ -44,12 +44,21 @@ export function OfferingsManager() {
 
       // Load all elements for this venue
       const elements = await getVenueElements(supabase, user.venueId);
+      console.log('All elements returned:', elements.length, elements);
 
       // Filter to only show venue's own offerings (not from other vendors)
+      // venue_vendors is joined in the query, check if vendor_id matches venue
       const venueOfferings = elements.filter(
-        (el: any) => el.venue_vendors?.vendor_id === user.venueId
+        (el: any) => {
+          // venue_vendors is a single object from the join
+          const venueVendor = el.venue_vendors;
+          console.log('Element venue_vendors:', venueVendor);
+          // Check if the vendors object has matching id to the venue
+          return venueVendor?.vendors?.vendor_id === user.venueId;
+        }
       );
 
+      console.log('Filtered venue offerings:', venueOfferings.length, venueOfferings);
       setOfferings(venueOfferings);
     } catch (err) {
       console.error('Failed to load offerings:', err);
@@ -79,7 +88,7 @@ export function OfferingsManager() {
     loadOfferings();
   }
 
-  const categories = ['all', ...new Set(offerings.map((o) => o.category).filter(Boolean))];
+  const categories = ['all', ...new Set(offerings.map((o) => o.category).filter((c): c is string => Boolean(c)))];
   const filteredOfferings =
     categoryFilter === 'all'
       ? offerings
