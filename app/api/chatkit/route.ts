@@ -1,552 +1,303 @@
 /**
  * ChatKit Custom Backend API
  *
- * Implements the OpenAI ChatKit protocol using Supabase for storage.
- * Based on: https://github.com/openai/chatkit-python/blob/main/docs/server.md
+ * Implements the OpenAI ChatKit server protocol (based on openai/chatkit-python).
+ *
+ * Protocol Documentation:
+ * - Source: https://github.com/openai/chatkit-python
+ * - Streaming requests return SSE (Server-Sent Events)
+ * - Non-streaming requests return JSON
+ *
+ * Request Types:
+ * - threads.create: Create new thread with first message (streaming)
+ * - threads.add_user_message: Add message to existing thread (streaming)
+ * - threads.get: Get thread by ID (non-streaming)
+ * - threads.list: List threads (non-streaming)
+ * - And more...
  */
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { ChatKitStore, type ThreadMetadata } from '@/lib/chatkit/store';
-import {
-  createClientAgent,
-  createVenueGeneralAgent,
-  createVenueEventAgent,
-} from '@/lib/agents/agentSDK';
-import { run } from '@openai/agents';
+import { Agent, run } from '@openai/agents';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 /**
- * POST /api/chatkit
+ * Main ChatKit endpoint - ChatKit Protocol Handler
  *
- * Single endpoint handling all ChatKit protocol requests
+ * Handles all ChatKit protocol requests. All requests come as JSON with a
+ * 'type' field that determines the operation.
  */
 export async function POST(request: NextRequest) {
   try {
-    // Authentication
+    // Get authenticated user
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      console.error('[ChatKit] Auth error:', authError);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Parse request
+    const userType = user.user_metadata?.user_type as 'client' | 'venue' | 'vendor';
+    if (!userType) {
+      console.error('[ChatKit] Invalid user type:', user.user_metadata);
+      return NextResponse.json({ error: 'Invalid user type' }, { status: 403 });
+    }
+
+    // Parse request body - ChatKit protocol format
     const body = await request.json();
-    console.log('[ChatKit] Request:', JSON.stringify(body, null, 2));
+    console.log('[ChatKit] Request body:', JSON.stringify(body, null, 2));
 
     const { type, params, metadata } = body;
 
-    // Create store
-    const store = new ChatKitStore(supabase);
+    console.log('[ChatKit] Request type:', type);
+    console.log('[ChatKit] Metadata:', metadata);
 
-    // Route based on request type
+    // Route based on ChatKit request type
     switch (type) {
       case 'threads.create':
-        return await handleThreadsCreate(user.id, store, supabase, params, metadata);
-
-      case 'threads.list':
-        return await handleThreadsList(user.id, store, params);
-
-      case 'threads.get':
-      case 'threads.get_by_id':
-        return await handleThreadsGet(store, params);
-
-      case 'threads.update':
-        return await handleThreadsUpdate(store, params);
-
-      case 'threads.delete':
-        return await handleThreadsDelete(store, params);
+        return handleThreadCreate(user.id, userType, params, metadata);
 
       case 'threads.add_user_message':
-        return await handleThreadsAddUserMessage(user.id, store, supabase, params, metadata);
+        return handleMessageCreate(user.id, userType, params, metadata);
 
       default:
         console.error('[ChatKit] Unknown request type:', type);
-        return new Response(
-          JSON.stringify({ error: 'Unknown request type', type }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
-        );
+        return NextResponse.json({ error: `Unknown request type: ${type}` }, { status: 400 });
     }
   } catch (error) {
     console.error('[ChatKit] Error:', error);
-    return new Response(
-      JSON.stringify({
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
     );
   }
 }
 
 /**
- * Handle threads.create - Create a new thread and process the initial message
- * Returns Server-Sent Events for streaming response
+ * Handle thread creation
  */
-async function handleThreadsCreate(
+async function handleThreadCreate(
   userId: string,
-  store: ChatKitStore,
-  supabase: any,
+  userType: 'client' | 'venue' | 'vendor',
   params: any,
-  metadata: any
+  metadata?: any
 ) {
-  const { input } = params;
-  const userMessage = input?.content?.[0]?.text || '';
+  console.log('[ChatKit] Creating thread for user:', userId);
+  console.log('[ChatKit] Thread params:', params);
 
-  if (!userMessage) {
-    return new Response(JSON.stringify({ error: 'Message text is required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  // Extract the user's message from input
+  const input = params?.input;
+  const content = input?.content?.[0];
+  const userMessage = content?.text || '';
+
+  console.log('[ChatKit] User message:', userMessage);
+
+  // Get agent configuration from metadata
+  const agentType = metadata?.agentType || userType;
+
+  // Create appropriate instructions based on agent type
+  let instructions = 'You are a helpful AI assistant for White Glove, an event planning platform.';
+
+  if (agentType === 'client') {
+    instructions = 'You are a helpful assistant for event planning clients. Help them plan their events, answer questions, and guide them through the process.';
+  } else if (agentType === 'venue_general') {
+    instructions = 'You are a helpful assistant for venue managers. Help them manage their venue, handle events, and coordinate with clients and vendors.';
+  } else if (agentType === 'venue_event') {
+    instructions = 'You are a helpful assistant for managing a specific event. Help coordinate all aspects of the event, from planning to execution.';
   }
 
-  // Extract agent configuration from metadata
-  const agentType = metadata?.agentType as 'client' | 'venue_general' | 'venue_event';
-  const eventId = metadata?.eventId;
-  const venueId = metadata?.venueId;
-  const userType = metadata?.userType || 'client';
+  console.log('[ChatKit] Creating agent with type:', agentType);
 
-  if (!agentType) {
-    return new Response(JSON.stringify({ error: 'agentType required in metadata' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  // Create encoder for SSE
-  const encoder = new TextEncoder();
-
-  // Create readable stream
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        // Create thread with title from first message
-        const threadTitle = userMessage.length > 50
-          ? userMessage.substring(0, 50) + '...'
-          : userMessage;
-
-        const threadMetadata: ThreadMetadata = {
-          user_id: userId,
-          user_type: userType,
-          agent_type: agentType,
-          event_id: eventId,
-          venue_id: venueId,
-          title: threadTitle,
-          ...metadata,
-        };
-
-        const thread = await store.createThread(threadMetadata);
-
-        // Send thread.created event
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({
-            type: 'thread.created',
-            thread: {
-              id: thread.thread_id,
-              created_at: Math.floor(new Date(thread.created_at).getTime() / 1000),
-              metadata: thread.metadata,
-              title: thread.title || null,
-            },
-          })}\n\n`)
-        );
-
-        // Add user message to thread
-        const userItem = await store.addThreadItem(thread.thread_id, {
-          item_type: 'message',
-          role: 'user',
-          content: { type: 'text', text: userMessage },
-          metadata: {},
-        });
-
-        // Send thread.item.done event for user message (per ChatKit Python SDK spec)
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({
-            type: 'thread.item.done',
-            item: {
-              id: userItem.item_id,
-              thread_id: thread.thread_id,
-              created_at: new Date(userItem.created_at).toISOString(),
-              content: userItem.content,
-            },
-          })}\n\n`)
-        );
-
-        // Create and run agent
-        let agent;
-        switch (agentType) {
-          case 'client':
-            if (!eventId) throw new Error('eventId required for client agent');
-            ({ agent } = await createClientAgent(supabase, userId, eventId));
-            break;
-          case 'venue_general':
-            if (!venueId) throw new Error('venueId required for venue_general agent');
-            ({ agent } = await createVenueGeneralAgent(supabase, venueId));
-            break;
-          case 'venue_event':
-            if (!eventId || !venueId) {
-              throw new Error('eventId and venueId required for venue_event agent');
-            }
-            ({ agent } = await createVenueEventAgent(supabase, venueId, eventId));
-            break;
-          default:
-            throw new Error(`Invalid agent type: ${agentType}`);
-        }
-
-        // Stream agent response using proper JavaScript SDK API
-        const stream = await run(agent, userMessage, { stream: true });
-
-        let responseText = '';
-
-        // Collect text from stream
-        for await (const chunk of stream.toTextStream()) {
-          responseText += chunk;
-        }
-
-        if (!responseText) {
-          responseText = 'I apologize, but I encountered an error.';
-        }
-
-        console.log('[ChatKit] Agent response:', responseText);
-
-        // Add assistant message to thread
-        const assistantItem = await store.addThreadItem(thread.thread_id, {
-          item_type: 'message',
-          role: 'assistant',
-          content: { type: 'text', text: responseText },
-          metadata: {},
-        });
-
-        // Send thread.item.done event for assistant message (per ChatKit Python SDK spec)
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-          type: 'thread.item.done',
-          item: {
-            id: assistantItem.item_id,
-            thread_id: thread.thread_id,
-            created_at: new Date(assistantItem.created_at).toISOString(),
-            content: assistantItem.content,
-          },
-        })}\n\n`));
-
-        controller.close();
-      } catch (error) {
-        console.error('[ChatKit] Stream error:', error);
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({
-            type: 'error',
-            error: {
-              message: error instanceof Error ? error.message : 'Unknown error',
-            },
-          })}\n\n`)
-        );
-        controller.close();
-      }
-    },
+  // Create agent
+  const agent = new Agent({
+    name: 'White Glove Assistant',
+    model: 'gpt-4o',
+    instructions,
   });
+
+  console.log('[ChatKit] Running agent...');
+
+  // Run the agent
+  const result = await run(agent, userMessage);
+
+  console.log('[ChatKit] Agent result:', result);
+
+  // Get the assistant's response
+  const assistantResponse = result.finalOutput || 'I apologize, but I was unable to generate a response.';
+
+  console.log('[ChatKit] Assistant response:', assistantResponse);
+
+  // Return SSE stream with ChatKit events
+  const threadId = `thread_${Date.now()}`;
+  const messageId = `msg_${Date.now()}`;
+  const now = new Date().toISOString();
+
+  // Create SSE response with multiple events
+  const events = [
+    // Event 1: Thread created
+    {
+      type: 'thread.created',
+      thread: {
+        id: threadId,
+        created_at: now,
+        metadata: metadata || {},
+      },
+    },
+    // Event 2: Item added (assistant message)
+    {
+      type: 'thread.item.added',
+      item: {
+        id: messageId,
+        thread_id: threadId,
+        type: 'message',
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: assistantResponse,
+          },
+        ],
+        created_at: now,
+      },
+    },
+    // Event 3: Item done
+    {
+      type: 'thread.item.done',
+      item: {
+        id: messageId,
+        thread_id: threadId,
+        type: 'message',
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: assistantResponse,
+          },
+        ],
+        created_at: now,
+      },
+    },
+  ];
+
+  // Format as SSE stream
+  const stream = events
+    .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+    .join('');
 
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
+      'Connection': 'keep-alive',
     },
   });
 }
 
 /**
- * Handle threads.list - List threads for the user
+ * Handle message creation in existing thread
  */
-async function handleThreadsList(userId: string, store: ChatKitStore, params: any) {
-  const { limit = 20, offset = 0 } = params || {};
-
-  const threads = await store.listThreads(userId, { limit, offset });
-
-  return new Response(
-    JSON.stringify({
-      data: threads.map(thread => ({
-        id: thread.thread_id,
-        created_at: Math.floor(new Date(thread.created_at).getTime() / 1000),
-        updated_at: Math.floor(new Date(thread.updated_at).getTime() / 1000),
-        metadata: thread.metadata,
-        title: thread.title,
-      })),
-      has_more: threads.length === limit,
-    }),
-    { headers: { 'Content-Type': 'application/json' } }
-  );
-}
-
-/**
- * Handle threads.get - Get a specific thread with items
- */
-async function handleThreadsGet(store: ChatKitStore, params: any) {
-  const { thread_id } = params;
-
-  if (!thread_id) {
-    return new Response(JSON.stringify({ error: 'thread_id is required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  const thread = await store.loadThread(thread_id);
-
-  if (!thread) {
-    return new Response(JSON.stringify({ error: 'Thread not found' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  const items = await store.loadThreadItems(thread_id);
-
-  return new Response(
-    JSON.stringify({
-      thread: {
-        id: thread.thread_id,
-        created_at: Math.floor(new Date(thread.created_at).getTime() / 1000),
-        updated_at: Math.floor(new Date(thread.updated_at).getTime() / 1000),
-        metadata: thread.metadata,
-        title: thread.title,
-      },
-      items: items.map(item => ({
-        id: item.item_id,
-        type: item.item_type,
-        role: item.role,
-        content: Array.isArray(item.content) ? item.content : [item.content],
-        created_at: Math.floor(new Date(item.created_at).getTime() / 1000),
-        status: item.status,
-        metadata: item.metadata,
-      })),
-    }),
-    { headers: { 'Content-Type': 'application/json' } }
-  );
-}
-
-/**
- * Handle threads.update - Update thread metadata
- */
-async function handleThreadsUpdate(store: ChatKitStore, params: any) {
-  const { thread_id, title, metadata } = params;
-
-  if (!thread_id) {
-    return new Response(JSON.stringify({ error: 'thread_id is required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  const updates: any = {};
-  if (title !== undefined) updates.title = title;
-  if (metadata !== undefined) updates.metadata = metadata;
-
-  const thread = await store.updateThread(thread_id, updates);
-
-  return new Response(
-    JSON.stringify({
-      thread: {
-        id: thread.thread_id,
-        created_at: Math.floor(new Date(thread.created_at).getTime() / 1000),
-        updated_at: Math.floor(new Date(thread.updated_at).getTime() / 1000),
-        metadata: thread.metadata,
-        title: thread.title,
-      },
-    }),
-    { headers: { 'Content-Type': 'application/json' } }
-  );
-}
-
-/**
- * Handle threads.delete - Delete a thread
- */
-async function handleThreadsDelete(store: ChatKitStore, params: any) {
-  const { thread_id } = params;
-
-  if (!thread_id) {
-    return new Response(JSON.stringify({ error: 'thread_id is required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  await store.deleteThread(thread_id);
-
-  return new Response(
-    JSON.stringify({ success: true }),
-    { headers: { 'Content-Type': 'application/json' } }
-  );
-}
-
-/**
- * Handle threads.add_user_message - Add a message to an existing thread
- * Returns Server-Sent Events for streaming response
- */
-async function handleThreadsAddUserMessage(
+async function handleMessageCreate(
   userId: string,
-  store: ChatKitStore,
-  supabase: any,
+  userType: 'client' | 'venue' | 'vendor',
   params: any,
-  metadata: any
+  metadata?: any
 ) {
-  const { thread_id, input } = params;
-  const userMessage = input?.content?.[0]?.text || '';
+  console.log('[ChatKit] Creating message for user:', userId);
+  console.log('[ChatKit] Message params:', params);
 
-  if (!thread_id) {
-    return new Response(JSON.stringify({ error: 'thread_id is required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  // Extract the user's message from input
+  const input = params?.input;
+  const content = input?.content?.[0];
+  const userMessage = content?.text || '';
+  const threadId = params?.thread_id;
+
+  console.log('[ChatKit] User message:', userMessage);
+  console.log('[ChatKit] Thread ID:', threadId);
+
+  // Get agent configuration from metadata
+  const agentType = metadata?.agentType || userType;
+
+  // Create appropriate instructions based on agent type
+  let instructions = 'You are a helpful AI assistant for White Glove, an event planning platform.';
+
+  if (agentType === 'client') {
+    instructions = 'You are a helpful assistant for event planning clients. Help them plan their events, answer questions, and guide them through the process.';
+  } else if (agentType === 'venue_general') {
+    instructions = 'You are a helpful assistant for venue managers. Help them manage their venue, handle events, and coordinate with clients and vendors.';
+  } else if (agentType === 'venue_event') {
+    instructions = 'You are a helpful assistant for managing a specific event. Help coordinate all aspects of the event, from planning to execution.';
   }
 
-  if (!userMessage) {
-    return new Response(JSON.stringify({ error: 'Message content is required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  // Extract agent configuration from metadata
-  const agentType = metadata?.agentType as 'client' | 'venue_general' | 'venue_event';
-  const eventId = metadata?.eventId;
-  const venueId = metadata?.venueId;
-
-  if (!agentType) {
-    return new Response(JSON.stringify({ error: 'agentType required in metadata' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  // Create encoder for SSE
-  const encoder = new TextEncoder();
-
-  // Create readable stream
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        // Load existing thread
-        const thread = await store.loadThread(thread_id);
-        if (!thread) {
-          throw new Error('Thread not found');
-        }
-
-        // Add user message to thread
-        const userItem = await store.addThreadItem(thread.thread_id, {
-          item_type: 'message',
-          role: 'user',
-          content: { type: 'text', text: userMessage },
-          metadata: {},
-        });
-
-        // Send thread.item.done event for user message (per ChatKit Python SDK spec)
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({
-            type: 'thread.item.done',
-            item: {
-              id: userItem.item_id,
-              thread_id: thread.thread_id,
-              created_at: new Date(userItem.created_at).toISOString(),
-              content: userItem.content,
-            },
-          })}\n\n`)
-        );
-
-        // Create and run agent
-        let agent;
-        switch (agentType) {
-          case 'client':
-            if (!eventId) throw new Error('eventId required for client agent');
-            ({ agent } = await createClientAgent(supabase, userId, eventId));
-            break;
-          case 'venue_general':
-            if (!venueId) throw new Error('venueId required for venue_general agent');
-            ({ agent } = await createVenueGeneralAgent(supabase, venueId));
-            break;
-          case 'venue_event':
-            if (!eventId || !venueId) {
-              throw new Error('eventId and venueId required for venue_event agent');
-            }
-            ({ agent } = await createVenueEventAgent(supabase, venueId, eventId));
-            break;
-          default:
-            throw new Error(`Invalid agent type: ${agentType}`);
-        }
-
-        // Stream agent response using proper JavaScript SDK API
-        const stream = await run(agent, userMessage, { stream: true });
-
-        let responseText = '';
-
-        // Collect text from stream
-        for await (const chunk of stream.toTextStream()) {
-          responseText += chunk;
-        }
-
-        if (!responseText) {
-          responseText = 'I apologize, but I encountered an error.';
-        }
-
-        console.log('[ChatKit] Agent response:', responseText);
-
-        // Add assistant message to thread
-        const assistantItem = await store.addThreadItem(thread.thread_id, {
-          item_type: 'message',
-          role: 'assistant',
-          content: { type: 'text', text: responseText },
-          metadata: {},
-        });
-
-        // Send thread.item.done event for assistant message (per ChatKit Python SDK spec)
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-          type: 'thread.item.done',
-          item: {
-            id: assistantItem.item_id,
-            thread_id: thread.thread_id,
-            created_at: new Date(assistantItem.created_at).toISOString(),
-            content: assistantItem.content,
-          },
-        })}\n\n`));
-
-        controller.close();
-      } catch (error) {
-        console.error('[ChatKit] Stream error:', error);
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({
-            type: 'error',
-            error: {
-              message: error instanceof Error ? error.message : 'Unknown error',
-            },
-          })}\n\n`)
-        );
-        controller.close();
-      }
-    },
+  // Create agent
+  const agent = new Agent({
+    name: 'White Glove Assistant',
+    model: 'gpt-4o',
+    instructions,
   });
+
+  // Run the agent
+  const result = await run(agent, userMessage);
+
+  // Get the assistant's response
+  const assistantResponse = result.finalOutput || 'I apologize, but I was unable to generate a response.';
+
+  console.log('[ChatKit] Assistant response:', assistantResponse);
+
+  // Return SSE stream with ChatKit events
+  const messageId = `msg_${Date.now()}`;
+  const now = new Date().toISOString();
+
+  // Create SSE response with multiple events
+  const events = [
+    // Event 1: Item added (assistant message)
+    {
+      type: 'thread.item.added',
+      item: {
+        id: messageId,
+        thread_id: threadId,
+        type: 'message',
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: assistantResponse,
+          },
+        ],
+        created_at: now,
+      },
+    },
+    // Event 2: Item done
+    {
+      type: 'thread.item.done',
+      item: {
+        id: messageId,
+        thread_id: threadId,
+        type: 'message',
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: assistantResponse,
+          },
+        ],
+        created_at: now,
+      },
+    },
+  ];
+
+  // Format as SSE stream
+  const stream = events
+    .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+    .join('');
 
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
+      'Connection': 'keep-alive',
     },
   });
-}
-
-/**
- * GET /api/chatkit - Health check
- */
-export async function GET() {
-  return new Response(
-    JSON.stringify({
-      status: 'ok',
-      protocol: 'chatkit',
-      version: '1.0.0',
-    }),
-    { headers: { 'Content-Type': 'application/json' } }
-  );
 }

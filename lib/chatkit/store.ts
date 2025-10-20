@@ -352,10 +352,11 @@ export class ChatKitStore {
   ): Promise<ChatKitAttachment> {
     const attachmentId = await this.generateAttachmentId();
 
+    const { thread_id: _, ...attachmentData } = attachment;
     const newAttachment: Partial<ChatKitAttachment> = {
       attachment_id: attachmentId,
       thread_id: threadId,
-      ...attachment,
+      ...attachmentData,
     };
 
     const { data, error } = await this.supabase

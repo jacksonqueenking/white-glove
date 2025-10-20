@@ -57,7 +57,7 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
     if (!element) throw new Error('Element not found');
 
     // Check availability
-    const available = await isElementAvailable(supabase, validated.element_id, event.date);
+    const available = await isElementAvailable(supabase, validated.element_id, event.date.toISOString());
     if (!available) {
       throw new Error('Element is not available for this date');
     }
@@ -387,6 +387,7 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
 
     const event = await createEvent(supabase, {
       ...validated,
+      date: new Date(validated.date),
       status: 'inquiry',
     });
 
@@ -639,8 +640,14 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
       throw new Error('Unauthorized');
     }
 
-    const { event_id, ...updates } = validated;
-    const updated = await updateEvent(supabase, event_id, updates);
+    const { event_id, date, rsvp_deadline, ...otherUpdates } = validated;
+    // Convert date strings to Date objects if provided
+    const processedUpdates = {
+      ...otherUpdates,
+      ...(date ? { date: new Date(date) } : {}),
+      ...(rsvp_deadline ? { rsvp_deadline: new Date(rsvp_deadline) } : {}),
+    };
+    const updated = await updateEvent(supabase, event_id, processedUpdates);
     return updated;
   },
 
@@ -768,11 +775,13 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
       throw new Error('Unauthorized');
     }
 
+    const { due_date, ...otherFields } = validated;
     const task = await createTask(supabase, {
-      ...validated,
+      ...otherFields,
       priority: validated.priority || 'medium',
       status: 'pending',
       created_by: context.userId,
+      ...(due_date ? { due_date: new Date(due_date) } : {}),
     });
 
     return task;
@@ -799,8 +808,12 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
       throw new Error('Unauthorized');
     }
 
-    const { task_id, ...updates } = validated;
-    const updated = await updateTask(supabase, task_id, updates);
+    const { task_id, due_date, ...otherUpdates } = validated;
+    const processedUpdates = {
+      ...otherUpdates,
+      ...(due_date ? { due_date: new Date(due_date) } : {}),
+    };
+    const updated = await updateTask(supabase, task_id, processedUpdates);
     return updated;
   },
 
