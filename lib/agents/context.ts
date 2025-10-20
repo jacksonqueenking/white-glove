@@ -15,7 +15,7 @@ import { getUserMessageThreads, listMessagesInThread } from '../db/messages';
 import { getVenueElements } from '../db/elements';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/database.types.gen';
-import type { ActionHistory } from '../schemas';
+import { ActionHistorySchema, type ActionHistory } from '../schemas';
 
 /**
  * Build complete context for Client AI Assistant
@@ -77,6 +77,11 @@ export async function buildClientContext(
     .order('created_at', { ascending: false })
     .limit(30);
 
+  // Parse action history through schema to coerce dates
+  const parsedActionHistory = (actionHistory || []).map((item: any) =>
+    ActionHistorySchema.parse(item)
+  );
+
   // Fetch available offerings at the venue
   const availableOfferings = await getVenueElements(supabase, event.venue_id);
 
@@ -109,7 +114,7 @@ export async function buildClientContext(
     eventElements: enrichedElements,
     tasks,
     guests,
-    actionHistory: (actionHistory || []) as ActionHistory[],
+    actionHistory: parsedActionHistory,
     availableOfferings: offerings,
     currentDateTime: new Date().toISOString(),
   };
@@ -149,6 +154,11 @@ export async function buildVenueGeneralContext(
     .order('created_at', { ascending: false })
     .limit(50);
 
+  // Parse action history through schema to coerce dates
+  const parsedActionHistory = (actionHistory || []).map((item: any) =>
+    ActionHistorySchema.parse(item)
+  );
+
   // Fetch all offerings at this venue
   const allOfferings = await getVenueElements(supabase, venueId);
 
@@ -185,7 +195,7 @@ export async function buildVenueGeneralContext(
     allEvents,
     allTasks: allTasks || [],
     allMessages: allMessages || [],
-    actionHistory: (actionHistory || []) as ActionHistory[],
+    actionHistory: parsedActionHistory,
     allOfferings: offerings,
     vendors,
     currentDateTime: new Date().toISOString(),
@@ -257,6 +267,11 @@ export async function buildVenueEventContext(
     .order('created_at', { ascending: false })
     .limit(30);
 
+  // Parse action history through schema to coerce dates
+  const parsedActionHistory = (actionHistory || []).map((item: any) =>
+    ActionHistorySchema.parse(item)
+  );
+
   // Fetch available offerings
   const availableOfferings = await getVenueElements(supabase, venueId);
 
@@ -287,7 +302,7 @@ export async function buildVenueEventContext(
     tasks,
     guests,
     messages: messages || [],
-    actionHistory: (actionHistory || []) as ActionHistory[],
+    actionHistory: parsedActionHistory,
     availableOfferings: offerings,
     currentDateTime: new Date().toISOString(),
   };
@@ -359,6 +374,11 @@ export async function buildVendorContext(
     .order('created_at', { ascending: false })
     .limit(20);
 
+  // Parse action history through schema to coerce dates
+  const parsedActionHistory = (actionHistory || []).map((item: any) =>
+    ActionHistorySchema.parse(item)
+  );
+
   return {
     vendor: {
       vendor_id: vendor.vendor_id,
@@ -371,7 +391,7 @@ export async function buildVendorContext(
     vendorTasks: vendorTasks || [],
     vendorMessages: vendorMessages || [],
     vendorElements: vendorElementsList,
-    actionHistory: (actionHistory || []) as ActionHistory[],
+    actionHistory: parsedActionHistory,
     currentDateTime: new Date().toISOString(),
   };
 }
