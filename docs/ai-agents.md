@@ -1,381 +1,156 @@
-**Making Suggestions:**
-```
-Client: We need catering but not sure what to do# AI Agents & LLM Orchestration
+# AI Agents & LLM Orchestration
 
 ## Overview
 
-This platform uses multiple AI agents coordinated by a central orchestrator. Each agent has specific context and capabilities, but the orchestrator manages the overall workflow.
+This platform uses **OpenAI Agents SDK** to power specialized AI agents for different user types. Each agent has specific context, capabilities, and tools tailored to their role in event coordination.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                 Orchestrator Agent                  │
-│          (LangGraph State Management)               │
-│                                                     │
-│  - Monitors all conversations                      │
-│  - Creates tasks dynamically                       │
-│  - Routes information                              │
-│  - Manages approvals                               │
-│  - Sends notifications                             │
-└──────────────┬─────────────┬────────────┬──────────┘
-               │             │            │
-       ┌───────▼─────┐ ┌─────▼─────┐ ┌──▼──────────┐
-       │   Client    │ │   Venue   │ │   Vendor    │
-       │  Assistant  │ │ Assistant │ │  Interface  │
-       │             │ │           │ │  (limited)  │
-       └─────────────┘ └───────────┘ └─────────────┘
+┌──────────────────────────────────────────────┐
+│              ChatKit UI Layer                │
+│        (Production chat interface)           │
+└────────────────────┬─────────────────────────┘
+                     │
+         ┌───────────▼────────────┐
+         │  Custom Backend API    │
+         │   (/api/chatkit)       │
+         └───────────┬────────────┘
+                     │
+      ┌──────────────┼──────────────┐
+      │              │              │
+┌─────▼─────┐  ┌────▼────┐  ┌──────▼───────┐
+│  Client   │  │  Venue  │  │   Venue      │
+│  Agent    │  │ General │  │   Event      │
+│           │  │  Agent  │  │   Agent      │
+└─────┬─────┘  └────┬────┘  └──────┬───────┘
+      │             │              │
+      └─────────────┼──────────────┘
+                    │
+           ┌────────▼────────┐
+           │  Tool Handlers  │
+           │  - Database ops │
+           │  - Messaging    │
+           │  - Tasks        │
+           └─────────────────┘
 ```
 
-## LangGraph State Management
+## Three Specialized Agents
 
-### Event State Graph
+### 1. Client Agent
 
-Each event has an associated state graph that tracks:
+**Purpose:** Help clients plan their events through conversational AI
 
-```typescript
-interface EventState {
-  event_id: string;
-  status: EventStatus;
-  elements: ElementState[];
-  tasks: TaskState[];
-  pending_approvals: Approval[];
-  conversation_contexts: {
-    client: ConversationContext;
-    venue: ConversationContext;
-  };
-  action_history: Action[];
-  metadata: any;
-}
+**Implementation:** `lib/agents/clientAssistant.ts`
 
-interface ElementState {
-  element_id: string;
-  status: "proposed" | "client_approved" | "venue_confirmed" | "vendor_confirmed" | "finalized" | "needs_revision";
-  approval_chain: string[]; // Who needs to approve
-  current_approver?: string;
-}
+**Context provided:**
+- Client information and preferences
+- Event details (date, venue, guest count, budget)
+- Selected elements and their status
+- Available venue services and vendors
+- Past conversation history
 
-interface TaskState {
-  task_id: string;
-  status: TaskStatus;
-  assigned_to: string;
-  created_at: datetime;
-  due_date?: datetime;
-  dependencies: string[]; // Other task IDs
-}
+**Available tools:**
+- `getEventDetails` - Retrieve full event information
+- `listAvailableElements` - Show venue offerings
+- `requestElementChange` - Propose changes to event elements
+- `viewGuestList` - Access guest list
+- `addGuest` - Add guests to event
+- `viewContract` - Show contract and pricing
 
-interface Approval {
-  approval_id: string;
-  type: "element" | "change_request" | "contract" | "payment";
-  target_id: string;
-  pending_from: string[]; // User IDs who need to approve
-  approved_by: string[];
-  status: "pending" | "approved" | "rejected";
-}
+**Example interaction:**
 ```
+Client: "Can we add more vegetarian options to the menu?"
 
-### State Transitions
-
-```typescript
-// Example state transitions
-const eventWorkflow = {
-  inquiry: {
-    transitions: ["venue_review"],
-    actions: ["create_initial_tasks", "notify_venue"]
-  },
-  venue_review: {
-    transitions: ["pending_confirmation", "rejected"],
-    actions: ["send_confirmation_email"]
-  },
-  pending_confirmation: {
-    transitions: ["confirmed", "expired"],
-    actions: ["send_reminder_at_24h"]
-  },
-  confirmed: {
-    transitions: ["in_planning"],
-    actions: ["create_planning_tasks", "invoke_element_suggestion"]
-  },
-  in_planning: {
-    transitions: ["finalized", "cancelled"],
-    actions: ["monitor_progress", "create_dynamic_tasks"]
-  },
-  finalized: {
-    transitions: ["completed"],
-    actions: ["final_confirmations", "send_reminders"]
-  }
-};
+Agent: "I can help with that! Your current menu has one vegetarian
+option. Let me check with the caterer about additional options.
+What type of cuisine are you interested in?"
 ```
-
-## Orchestrator Agent
-
-### Primary Responsibilities
-
-**1. Context Management**
-```typescript
-interface OrchestratorContext {
-  all_events: Event[];
-  active_conversations: Conversation[];
-  pending_tasks: Task[];
-  recent_actions: Action[];
-  user_preferences: UserPreferences;
-}
-```
-
-The orchestrator maintains a holistic view of:
-- All ongoing events
-- Conversations across all parties
-- Pending tasks and deadlines
-- Recent actions and changes
-- User preferences and patterns
-
-**2. Dynamic Task Creation**
-
-```typescript
-interface TaskCreationDecision {
-  trigger: "conversation" | "action" | "time_based" | "dependency";
-  context: any;
-  decision: {
-    create_task: boolean;
-    task_type: string;
-    assigned_to: string;
-    priority: Priority;
-    form_schema?: FormSchema;
-    due_date?: datetime;
-  };
-}
-```
-
-The orchestrator analyzes conversations and determines when to create tasks:
-
-**Example Scenarios:**
-
-*Scenario 1: Client requests change*
-```
-Client: "Can we change the flowers to be more pink and less red?"
-
-Orchestrator analyzes:
-- This affects the floral element
-- Floral element has external vendor
-- Change requires vendor approval
-- Creates task for vendor with form
-
-Task created:
-- Type: "element_change_request"
-- Assigned to: Floral vendor
-- Form: Custom form with color preferences, budget impact
-- Priority: Medium
-- Due: 3 days before event
-```
-
-*Scenario 2: Venue notices issue*
-```
-Venue (to AI): "The kitchen renovation will limit catering capacity for events in June"
-
-Orchestrator analyzes:
-- Affects multiple June events
-- Creates tasks for venue to contact affected clients
-- Creates alert for future bookings
-- Updates capacity rules
-
-Tasks created:
-- Multiple client notification tasks
-- Venue review task for alternatives
-- System update task for capacity rules
-```
-
-**3. Information Routing**
-
-The orchestrator determines:
-- What information each party needs
-- When to share information
-- How to present information (message vs task vs notification)
-- Whether to request additional details
-
-**4. Approval Chain Management**
-
-```typescript
-interface ApprovalChain {
-  initiator: string;
-  approvers: ApprovalStep[];
-  current_step: number;
-  status: "pending" | "approved" | "rejected";
-}
-
-interface ApprovalStep {
-  approver_id: string;
-  approver_type: "client" | "venue" | "vendor";
-  required: boolean; // vs optional
-  status: "pending" | "approved" | "rejected" | "skipped";
-  approved_at?: datetime;
-  conditions?: any; // When does this step apply?
-}
-```
-
-**Example Approval Flow:**
-```
-Client requests custom catering menu
-→ Venue reviews and approves concept
-→ Caterer reviews and provides pricing
-→ Client approves pricing
-→ Venue confirms contract terms
-→ Finalized
-```
-
-**5. Notification Management**
-
-```typescript
-interface NotificationDecision {
-  event: string;
-  urgency: "low" | "medium" | "high" | "critical";
-  recipients: string[];
-  channels: ("in_app" | "email" | "sms")[];
-  timing: "immediate" | "batch" | "scheduled";
-  content: {
-    subject: string;
-    body: string;
-    cta?: CallToAction;
-  };
-}
-```
-
-**Notification Rules:**
-- Critical: Immediate email + in-app (payment failures, cancellations)
-- High: Immediate in-app, email within 15 min (approvals needed, deadlines approaching)
-- Medium: In-app, batch email daily (updates, non-urgent tasks)
-- Low: In-app only (status changes, informational)
-
-User preferences can override defaults.
 
 ---
 
-## Dynamic Form Generation
+### 2. Venue General Agent
 
-### Form Schema
+**Purpose:** Help venue staff manage operations across all events
 
-The orchestrator can generate custom forms for complex tasks:
+**Implementation:** `lib/agents/venueAssistant.ts`
 
-```typescript
-interface FormSchema {
-  form_id: string;
-  task_id: string;
-  title: string;
-  description: string;
-  fields: FormField[];
-  validation: ValidationRules;
-  submit_action: string; // Tool to call with form data
-}
+**Context provided:**
+- Venue information
+- All events (current and upcoming)
+- Vendor relationships
+- Task summaries across all events
+- Message threads overview
 
-interface FormField {
-  id: string;
-  type: "text" | "textarea" | "number" | "select" | "multiselect" | 
-        "date" | "datetime" | "file" | "checkbox" | "radio" | 
-        "color-picker" | "slider" | "rating";
-  label: string;
-  placeholder?: string;
-  required: boolean;
-  options?: Option[]; // For select/multiselect/radio
-  validation?: FieldValidation;
-  conditional?: ConditionalLogic; // Show/hide based on other fields
-  helpText?: string;
-}
+**Available tools:**
+- `listEvents` - Show all venue events
+- `getEventSummary` - Quick overview of specific event
+- `listVendors` - Show approved vendors
+- `listPendingTasks` - Show tasks needing attention
+- `searchMessages` - Find specific communications
 
-interface Option {
-  value: string;
-  label: string;
-  description?: string;
-  image?: string;
-}
+**Example interaction:**
+```
+Venue: "What events do I have this weekend?"
+
+Agent: "You have 3 events this weekend:
+- Smith Wedding (Sat, 6pm) - All confirmed
+- Johnson Birthday (Sat, 2pm) - Awaiting final guest count
+- Martinez Corporate (Sun, 11am) - 2 pending vendor confirmations"
 ```
 
-### Example: Custom Floral Arrangement Form
+---
 
-```typescript
-{
-  form_id: "floral_customization_123",
-  task_id: "task_456",
-  title: "Customize Floral Arrangements",
-  description: "Please specify your preferences for the floral arrangements",
-  fields: [
-    {
-      id: "color_scheme",
-      type: "multiselect",
-      label: "Color Scheme",
-      required: true,
-      options: [
-        { value: "pink", label: "Pink", image: "/colors/pink.png" },
-        { value: "white", label: "White", image: "/colors/white.png" },
-        { value: "blush", label: "Blush", image: "/colors/blush.png" }
-      ]
-    },
-    {
-      id: "flower_types",
-      type: "multiselect",
-      label: "Preferred Flowers",
-      required: false,
-      options: [
-        { value: "roses", label: "Roses" },
-        { value: "peonies", label: "Peonies" },
-        { value: "hydrangeas", label: "Hydrangeas" }
-      ],
-      helpText: "Select your favorite flowers, or leave blank for florist's choice"
-    },
-    {
-      id: "style",
-      type: "select",
-      label: "Arrangement Style",
-      required: true,
-      options: [
-        { value: "romantic", label: "Romantic & Lush" },
-        { value: "modern", label: "Modern & Minimalist" },
-        { value: "rustic", label: "Rustic & Natural" }
-      ]
-    },
-    {
-      id: "budget_impact",
-      type: "radio",
-      label: "Are you willing to adjust budget if needed?",
-      required: true,
-      options: [
-        { value: "flexible", label: "Yes, within reason" },
-        { value: "strict", label: "No, must stay within original budget" }
-      ]
-    },
-    {
-      id: "additional_notes",
-      type: "textarea",
-      label: "Additional Notes",
-      required: false,
-      placeholder: "Any other specific requests or preferences?"
-    }
-  ],
-  submit_action: "submit_floral_customization"
-}
+### 3. Venue Event Agent
+
+**Purpose:** Help venue staff coordinate a specific event
+
+**Implementation:** `lib/agents/venueAssistant.ts` (event context)
+
+**Context provided:**
+- Full event details
+- Client information
+- All event elements and status
+- Vendor assignments
+- Event-specific tasks
+- Communication history for this event
+
+**Available tools:**
+- `getEventDetails` - Full event information
+- `updateElementStatus` - Change element status
+- `sendMessageToClient` - Communicate with client
+- `sendMessageToVendor` - Coordinate with vendor
+- `createTask` - Assign tasks
+- `updateEvent` - Modify event details
+
+**Example interaction:**
+```
+Venue: "Has the florist confirmed for the Smith wedding?"
+
+Agent: "Yes! Rose Garden Florist confirmed on Oct 3rd. They'll
+deliver at 2pm on the event day. Cost: $1,250 (approved by client)."
 ```
 
-### Form Rendering
+---
 
-The frontend receives this schema and dynamically renders the form with:
-- Proper validation
-- Conditional logic
-- File uploads
-- Rich interactions (color pickers, date pickers, etc.)
+## Agent Capabilities
 
-### Form Submission Flow
+### What Agents Can Do
 
-```
-1. User fills out form
-2. Frontend validates client-side
-3. Submit to backend
-4. Backend validates with Zod
-5. Orchestrator receives form data
-6. Orchestrator analyzes response
-7. Orchestrator decides next actions:
-   - Create follow-up tasks?
-   - Send messages?
-   - Update element status?
-   - Request additional approvals?
-8. Parties notified of outcome
-```
+1. **Answer Questions** - Using provided context
+2. **Execute Actions** - Via tool calling
+3. **Create Tasks** - For other users when coordination needed
+4. **Send Messages** - Between parties
+5. **Manage Data** - Update events, elements, guests
+6. **Make Decisions** - Within defined boundaries
+
+### What Agents Cannot Do
+
+- Access data outside their context
+- Bypass RLS policies
+- Make financial transactions directly
+- Delete or permanently modify critical data
+- Impersonate other users
 
 ---
 

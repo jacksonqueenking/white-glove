@@ -83,13 +83,13 @@ export async function POST(request: NextRequest) {
     try {
       switch (agentType) {
         case 'client':
-          ({ agent, context } = await createClientAgent(user.id, eventId));
+          ({ agent, context } = await createClientAgent(supabase, user.id, eventId));
           break;
         case 'venue_general':
-          ({ agent, context } = await createVenueGeneralAgent(venueId));
+          ({ agent, context } = await createVenueGeneralAgent(supabase, venueId));
           break;
         case 'venue_event':
-          ({ agent, context } = await createVenueEventAgent(venueId, eventId));
+          ({ agent, context } = await createVenueEventAgent(supabase, venueId, eventId));
           break;
         default:
           return NextResponse.json(

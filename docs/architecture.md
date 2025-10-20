@@ -24,77 +24,74 @@ This platform uses a three-tier architecture with AI orchestration as a cross-cu
 - Temporary data storage
 - Queue management for background jobs
 
-### AI Orchestration Layer (LangGraph)
-- Provider-agnostic LLM integration
-- State graph management for workflows
+### AI Orchestration Layer (OpenAI Agents SDK)
+- OpenAI GPT-4o for AI agents
+- Three specialized agent types (client, venue_general, venue_event)
 - Tool execution and coordination
-- Context management across conversations
+- Context management via system prompts
 
-## AI Orchestration Architecture
+## AI Agent Architecture
 
-The orchestrator is the "brain" of the platform, managing all coordination between parties.
+The platform uses specialized AI agents built with **OpenAI Agents SDK** to coordinate events.
 
-### How It Works
+### Agent Flow
 
 ```
-Client Chat → Orchestrator → Task Creation
-                ↓
-Venue AI ← Orchestrator → Vendor Communication
-                ↓
-         Database Updates
-                ↓
-         Real-time UI Updates
+User → ChatKit UI → Custom Backend → Agent Selection
+                                            ↓
+                                    OpenAI Agents SDK
+                                            ↓
+                                    Tool Execution
+                                            ↓
+                            Database Updates / Messages
+                                            ↓
+                                Real-time UI Updates
 ```
 
-### LangGraph State Management
+### Three Specialized Agents
 
-Each event has an associated state graph that tracks:
-- Current workflow state
-- Pending tasks
-- Conversation history
-- Action history
-- Approval chains
+**1. Client Agent**
+- Helps clients plan their events
+- Context: Client info, event details, available elements
+- Tools: View event, request changes, manage guests, view contracts
 
-**State Transitions:**
-```
-Event Created → Elements Suggested → Awaiting Client Approval
-     ↓                                        ↓
-Venue Approved ← Task Created ← Client Requests Change
-     ↓
-Vendor Notified → Vendor Confirms → Element Finalized
-```
+**2. Venue General Agent**
+- Helps venue staff manage all operations
+- Context: All venue events, vendors, tasks
+- Tools: List events, manage vendors, coordinate communications
 
-### Orchestrator Responsibilities
+**3. Venue Event Agent**
+- Helps venue staff coordinate specific events
+- Context: Detailed event information, client data, vendors
+- Tools: Manage elements, send messages, create tasks, update status
 
-1. **Context Awareness**
-   - Maintains full context for each event
-   - Tracks relationships between entities
-   - Remembers conversation history
-   - Understands current state
+**Implementation:** See [ChatKit documentation](./chatkit.md) for details.
 
-2. **Dynamic Task Creation**
-   - Analyzes conversations and actions
-   - Creates appropriate tasks for right parties
-   - Generates custom forms when needed
-   - Sets priorities and deadlines
+### Agent Architecture
 
-3. **Information Routing**
-   - Determines who needs to know what
-   - Routes messages to appropriate parties
-   - Synthesizes information from multiple sources
-   - Maintains thread continuity
+Each agent is composed of:
+1. **System Prompt** - Defines role, personality, and behavior
+2. **Context Builder** - Gathers relevant data for conversation
+3. **Tools** - Available actions (database operations, messaging, etc.)
+4. **Tool Handlers** - Business logic implementations
 
-4. **Workflow Management**
-   - Enforces business rules
-   - Manages approval chains
-   - Handles escalations
-   - Tracks progress
+**Code Structure:**
+- `lib/agents/prompts.ts` - System prompts
+- `lib/agents/context.ts` - Context builders
+- `lib/agents/tools.ts` - Tool definitions
+- `lib/agents/toolHandlers.ts` - Tool implementations
+- `lib/agents/agentSDK.ts` - Agent factory functions
 
-5. **Notification Management**
-   - Decides notification urgency
-   - Respects user preferences
-   - Sends via appropriate channel (in-app vs email)
-   - Manages reminder schedules
+### Agent Responsibilities
+
+Agents can:
+
+1. **Answer Questions** - Using provided context
+2. **Execute Actions** - Via tool calling (database operations)
+3. **Create Tasks** - For other users when coordination needed
+4. **Send Messages** - Between clients, venues, and vendors
+5. **Manage Data** - Update events, elements, guests, etc.
+6. **Make Decisions** - Within defined boundaries and escalate when needed
 
 ### Tool Architecture
 

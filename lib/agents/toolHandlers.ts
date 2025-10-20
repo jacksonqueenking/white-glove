@@ -199,7 +199,7 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
     const supabase = createClient();
     const schema = z.object({
       task_id: z.string().uuid(),
-      form_response: z.any().optional(),
+      form_response: z.string().optional(),
     });
     const validated = schema.parse(params);
 
@@ -208,10 +208,15 @@ export const clientToolHandlers: Record<string, ToolHandler> = {
       throw new Error('Unauthorized');
     }
 
+    // Parse form_response if it's a JSON string
+    const formResponse = validated.form_response
+      ? JSON.parse(validated.form_response)
+      : undefined;
+
     const completed = await completeTask(
       supabase,
       validated.task_id,
-      validated.form_response,
+      formResponse,
       context.userId,
       context.userType
     );
@@ -445,7 +450,7 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
       category: z.string(),
       price: z.number(),
       description: z.string(),
-      availability_rules: z.any().optional(),
+      availability_rules: z.string().optional(),
     });
     const validated = schema.parse(params);
 
@@ -460,10 +465,15 @@ export const venueGeneralToolHandlers: Record<string, ToolHandler> = {
       throw new Error('Unauthorized');
     }
 
+    // Parse availability_rules if it's a JSON string
+    const availabilityRules = validated.availability_rules
+      ? JSON.parse(validated.availability_rules)
+      : { lead_time_days: 0 };
+
     const element = await createElement(supabase, {
       ...validated,
       files: [],
-      availability_rules: validated.availability_rules || { lead_time_days: 0 },
+      availability_rules: availabilityRules,
     });
     return element;
   },
@@ -798,7 +808,7 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
     const supabase = createClient();
     const schema = z.object({
       task_id: z.string().uuid(),
-      form_response: z.any().optional(),
+      form_response: z.string().optional(),
     });
     const validated = schema.parse(params);
 
@@ -813,10 +823,15 @@ export const venueEventToolHandlers: Record<string, ToolHandler> = {
       throw new Error('Unauthorized');
     }
 
+    // Parse form_response if it's a JSON string
+    const formResponse = validated.form_response
+      ? JSON.parse(validated.form_response)
+      : undefined;
+
     const completed = await completeTask(
       supabase,
       validated.task_id,
-      validated.form_response,
+      formResponse,
       context.userId,
       'venue'
     );
@@ -955,7 +970,7 @@ export const vendorToolHandlers: Record<string, ToolHandler> = {
     const supabase = createClient();
     const schema = z.object({
       task_id: z.string().uuid(),
-      form_response: z.any().optional(),
+      form_response: z.string().optional(),
     });
     const validated = schema.parse(params);
 
@@ -964,10 +979,15 @@ export const vendorToolHandlers: Record<string, ToolHandler> = {
       throw new Error('Unauthorized');
     }
 
+    // Parse form_response if it's a JSON string
+    const formResponse = validated.form_response
+      ? JSON.parse(validated.form_response)
+      : undefined;
+
     const completed = await completeTask(
       supabase,
       validated.task_id,
-      validated.form_response,
+      formResponse,
       context.userId,
       'vendor'
     );

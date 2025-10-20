@@ -13,14 +13,18 @@ import { listTasks } from '../db/tasks';
 import { listGuests } from '../db/guests';
 import { getUserMessageThreads, listMessagesInThread } from '../db/messages';
 import { getVenueElements } from '../db/elements';
-import { createClient } from '../supabase/client';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../supabase/database.types.gen';
 import type { ActionHistory } from '../schemas';
 
 /**
  * Build complete context for Client AI Assistant
  */
-export async function buildClientContext(clientId: string, eventId: string) {
-  const supabase = createClient();
+export async function buildClientContext(
+  supabase: SupabaseClient<Database>,
+  clientId: string,
+  eventId: string
+) {
 
   // Fetch event
   const event = await getEvent(supabase, eventId);
@@ -114,8 +118,10 @@ export async function buildClientContext(clientId: string, eventId: string) {
 /**
  * Build complete context for Venue General AI Assistant
  */
-export async function buildVenueGeneralContext(venueId: string) {
-  const supabase = createClient();
+export async function buildVenueGeneralContext(
+  supabase: SupabaseClient<Database>,
+  venueId: string
+) {
 
   // Fetch venue
   const venue = await getVenue(supabase, venueId);
@@ -189,8 +195,11 @@ export async function buildVenueGeneralContext(venueId: string) {
 /**
  * Build complete context for Venue Event AI Assistant
  */
-export async function buildVenueEventContext(venueId: string, eventId: string) {
-  const supabase = createClient();
+export async function buildVenueEventContext(
+  supabase: SupabaseClient<Database>,
+  venueId: string,
+  eventId: string
+) {
 
   // Fetch event
   const event = await getEvent(supabase, eventId);
@@ -287,8 +296,10 @@ export async function buildVenueEventContext(venueId: string, eventId: string) {
 /**
  * Build context for Vendor Interface
  */
-export async function buildVendorContext(vendorId: string) {
-  const supabase = createClient();
+export async function buildVendorContext(
+  supabase: SupabaseClient<Database>,
+  vendorId: string
+) {
 
   // Fetch vendor
   const { data: vendor } = await supabase

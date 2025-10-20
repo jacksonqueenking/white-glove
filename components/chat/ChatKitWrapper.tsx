@@ -3,11 +3,11 @@
 /**
  * ChatKit Wrapper Component
  *
- * Integrates OpenAI's ChatKit for event planning chat interfaces.
- * Replaces the custom chat UI with ChatKit's plug-and-play solution.
+ * Integrates OpenAI's ChatKit with custom backend using OpenAI Agents SDK.
+ * Uses CustomApiConfig to connect to our /api/chatkit endpoint.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ChatKit, useChatKit } from '@openai/chatkit-react';
 
 interface ChatKitWrapperProps {
@@ -36,51 +36,74 @@ export function ChatKitWrapper({
   title,
   subtitle,
 }: ChatKitWrapperProps) {
+  // Build metadata to pass to backend
+  const metadata = useMemo(() => ({
+    agentType,
+    eventId,
+    venueId,
+  }), [agentType, eventId, venueId]);
+
   const { control } = useChatKit({
+    // Use custom backend API
     api: {
-      async getClientSecret(existingSecret) {
-        // Build query parameters
-        const params = new URLSearchParams({
-          agentType,
-        });
+      url: '/api/chatkit',
+      domainKey: process.env.NEXT_PUBLIC_CHATKIT_DOMAIN_KEY || 'domain_pk_localhost_dev',
 
-        if (eventId) {
-          params.append('eventId', eventId);
-        }
+      // Optional: Add custom headers or authentication
+      async fetch(url, options) {
+        // Inject metadata into all requests
+        const body = options?.body ? JSON.parse(options.body as string) : {};
+        const enhancedBody = {
+          ...body,
+          metadata, // Add agent configuration
+        };
 
-        if (venueId) {
-          params.append('venueId', venueId);
-        }
-
-        // Fetch session from our API
-        const res = await fetch(`/api/chatkit/session?${params.toString()}`, {
-          method: 'POST',
+        return fetch(url, {
+          ...options,
           headers: {
+            ...options?.headers,
             'Content-Type': 'application/json',
           },
+          credentials: 'same-origin',
+          body: JSON.stringify(enhancedBody),
         });
-
-        if (!res.ok) {
-          throw new Error('Failed to create ChatKit session');
-        }
-
-        const data = await res.json();
-        return data.client_secret;
       },
     },
-    // Optional: Configure theme to match our design system
-    // Note: Theme configuration may vary based on ChatKit version
-    // Uncomment and adjust when ChatKit theming is finalized
-    // theme: {
-    //   color: '#f0bda4', // Primary color
-    // },
-    // Optional: Start screen configuration
-    // Note: Start screen configuration may vary based on ChatKit version
-    // Uncomment and adjust when ChatKit API is finalized
-    // startScreen: {
-    //   heading: title || getDefaultTitle(agentType),
-    //   description: subtitle || getDefaultSubtitle(agentType),
-    // },
+
+    // Theme configuration
+    theme: {
+      colorScheme: 'light',
+      radius: 'round',
+      color: {
+        accent: {
+          primary: '#f0bda4',
+          level: 1,
+        },
+      },
+    },
+
+    // Start screen with prompts
+    startScreen: {
+      greeting: title || getDefaultTitle(agentType),
+      prompts: getStarterPrompts(agentType),
+    },
+
+    // Composer configuration
+    composer: {
+      placeholder: subtitle || getDefaultSubtitle(agentType),
+    },
+
+    // Enable thread history
+    history: {
+      enabled: true,
+      showDelete: true,
+      showRename: true,
+    },
+
+    // Error handling
+    onError: (error) => {
+      console.error('[ChatKit] Error:', error);
+    },
   });
 
   // Load ChatKit script
@@ -123,12 +146,40 @@ function getDefaultTitle(agentType: string): string {
 function getDefaultSubtitle(agentType: string): string {
   switch (agentType) {
     case 'client':
-      return 'Chat naturally and I\'ll coordinate updates with your venue and vendors automatically.';
+      return 'Message your assistant...';
     case 'venue_general':
-      return 'Ask me anything about your venue, events, or vendors.';
+      return 'Ask me anything...';
     case 'venue_event':
-      return 'I\'m here to help coordinate all aspects of this event.';
+      return 'How can I help with this event?';
     default:
       return 'How can I help you today?';
+  }
+}
+
+/**
+ * Get starter prompts based on agent type
+ */
+function getStarterPrompts(agentType: string) {
+  switch (agentType) {
+    case 'client':
+      return [
+        { label: 'Plan my event', prompt: 'Help me start planning my event' },
+        { label: 'Check status', prompt: 'What\'s the current status of my event planning?' },
+        { label: 'Make changes', prompt: 'I\'d like to make some changes to my event' },
+      ];
+    case 'venue_general':
+      return [
+        { label: 'View events', prompt: 'Show me upcoming events' },
+        { label: 'Manage vendors', prompt: 'Help me manage vendor relationships' },
+        { label: 'Venue info', prompt: 'Tell me about my venue capabilities' },
+      ];
+    case 'venue_event':
+      return [
+        { label: 'Event details', prompt: 'Give me the current event details' },
+        { label: 'Coordinate vendors', prompt: 'Help me coordinate with vendors for this event' },
+        { label: 'Client updates', prompt: 'Are there any updates from the client?' },
+      ];
+    default:
+      return [];
   }
 }

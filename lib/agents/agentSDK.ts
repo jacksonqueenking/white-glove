@@ -7,6 +7,8 @@
 
 import { Agent, tool } from '@openai/agents';
 import { z } from 'zod';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../supabase/database.types.gen';
 import {
   generateClientSystemPrompt,
   generateVenueGeneralSystemPrompt,
@@ -36,6 +38,9 @@ function convertToAgentTool(
   // Extract the parameter schema
   const paramSchema = z.object(
     Object.entries(toolDef.function.parameters.properties).reduce((acc, [key, value]: [string, any]) => {
+      // Check if field is required
+      const isRequired = toolDef.function.parameters.required?.includes(key);
+
       // Convert JSON schema types to Zod types
       let zodType;
       if (value.type === 'string') {
@@ -45,18 +50,33 @@ function convertToAgentTool(
       } else if (value.type === 'boolean') {
         zodType = z.boolean();
       } else if (value.type === 'object') {
-        zodType = z.any();
+        // OpenAI doesn't support z.record() or z.any() for objects
+        // Convert to string and let the tool handler parse it
+        if (isRequired) {
+          zodType = z.string().describe('JSON string representing an object');
+        } else {
+          zodType = z.string().default('{}').describe('JSON string representing an object');
+        }
+      } else if (value.type === 'array') {
+        // OpenAI doesn't support z.array(z.any()) well
+        // Convert to string and let the tool handler parse it
+        if (isRequired) {
+          zodType = z.string().describe('JSON string representing an array');
+        } else {
+          zodType = z.string().default('[]').describe('JSON string representing an array');
+        }
       } else {
-        zodType = z.any();
+        zodType = z.string(); // Default to string instead of any
       }
 
-      // Make optional if not in required array
-      if (!toolDef.function.parameters.required?.includes(key)) {
-        zodType = zodType.optional();
-      }
-
+      // Add description before optional/nullable modifiers
       if (value.description) {
         zodType = zodType.describe(value.description);
+      }
+
+      // Make optional if not in required array (but not for objects/arrays - they have defaults)
+      if (!isRequired && value.type !== 'object' && value.type !== 'array') {
+        zodType = zodType.nullable().optional();
       }
 
       acc[key] = zodType;
@@ -84,9 +104,13 @@ function convertToAgentTool(
 /**
  * Create Client AI Agent
  */
-export async function createClientAgent(clientId: string, eventId: string) {
+export async function createClientAgent(
+  supabase: SupabaseClient<Database>,
+  clientId: string,
+  eventId: string
+) {
   // Build context
-  const context = await buildClientContext(clientId, eventId);
+  const context = await buildClientContext(supabase, clientId, eventId);
 
   // Generate system prompt
   const instructions = generateClientSystemPrompt(context as any);
@@ -115,9 +139,12 @@ export async function createClientAgent(clientId: string, eventId: string) {
 /**
  * Create Venue General AI Agent
  */
-export async function createVenueGeneralAgent(venueId: string) {
+export async function createVenueGeneralAgent(
+  supabase: SupabaseClient<Database>,
+  venueId: string
+) {
   // Build context
-  const context = await buildVenueGeneralContext(venueId);
+  const context = await buildVenueGeneralContext(supabase, venueId);
 
   // Generate system prompt
   const instructions = generateVenueGeneralSystemPrompt(context as any);
@@ -146,9 +173,13 @@ export async function createVenueGeneralAgent(venueId: string) {
 /**
  * Create Venue Event AI Agent
  */
-export async function createVenueEventAgent(venueId: string, eventId: string) {
+export async function createVenueEventAgent(
+  supabase: SupabaseClient<Database>,
+  venueId: string,
+  eventId: string
+) {
   // Build context
-  const context = await buildVenueEventContext(venueId, eventId);
+  const context = await buildVenueEventContext(supabase, venueId, eventId);
 
   // Generate system prompt
   const instructions = generateVenueEventSystemPrompt(context as any);

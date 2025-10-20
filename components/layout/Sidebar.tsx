@@ -17,7 +17,6 @@ const VENUE_NAV_ITEMS = [
 ];
 
 const CLIENT_NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard", href: "/client/dashboard", icon: "🏠" },
   { id: "events", label: "My Events", href: "/client/events", icon: "🎉" },
   { id: "messages", label: "Messages", href: "/client/messages", icon: "💬" },
   { id: "tasks", label: "Tasks", href: "/client/tasks", icon: "✓" },

@@ -7,7 +7,6 @@ import { FormInput } from '../forms/FormInput';
 import { useCurrentUser } from '../../lib/hooks/useCurrentUser';
 import { listEvents } from '../../lib/db/events';
 import { listSpaces } from '../../lib/db/spaces';
-import { listTasks } from '../../lib/db/tasks';
 import { createClient } from '../../lib/supabase/client';
 
 interface EventSummary {
@@ -19,7 +18,12 @@ interface EventSummary {
   attention_items: string[];
 }
 
-export function EventsOverview() {
+interface EventsOverviewProps {
+  /** The user type - determines which events to load and where to navigate */
+  userType: 'venue' | 'client';
+}
+
+export function EventsOverview({ userType }: EventsOverviewProps) {
   const router = useRouter();
   const { user, loading: userLoading } = useCurrentUser();
   const [loading, setLoading] = useState(true);
@@ -43,31 +47,39 @@ export function EventsOverview() {
 
   async function loadEvents() {
     try {
-      if (!user || user.type !== 'venue' || !user.venueId) {
+      // Validate user type matches expected type
+      if (!user || user.type !== userType) {
+        setLoading(false);
+        return;
+      }
+
+      // Get the appropriate ID based on user type
+      const userId = userType === 'venue' ? user.venueId : user.clientId;
+      if (!userId) {
         setLoading(false);
         return;
       }
 
       const supabase = createClient();
 
-      // Load events, spaces, and tasks
-      const [eventsData, spacesData, allTasks] = await Promise.all([
-        listEvents(supabase, { venue_id: user.venueId }),
-        listSpaces(supabase, user.venueId),
-        // Get all tasks for this venue's events
-        (async () => {
-          // TODO: Create a function to get tasks by venue_id
-          return [];
-        })(),
-      ]);
+      // Load events based on user type
+      const filterParams = userType === 'venue'
+        ? { venue_id: userId }
+        : { client_id: userId };
 
-      console.log('Events data loaded:', eventsData.length, eventsData);
-      console.log('Spaces data loaded:', spacesData.length, spacesData);
+      const eventsData = await listEvents(supabase, filterParams);
 
-      // Create space mapping
-      const spaceMap = Object.fromEntries(
-        spacesData.map((s) => [s.space_id, s.name])
-      );
+      console.log(`${userType} events data loaded:`, eventsData.length, eventsData);
+
+      // Load spaces if venue (clients don't need this)
+      let spaceMap: Record<string, string> = {};
+      if (userType === 'venue' && user.venueId) {
+        const spacesData = await listSpaces(supabase, user.venueId);
+        console.log('Spaces data loaded:', spacesData.length, spacesData);
+        spaceMap = Object.fromEntries(
+          spacesData.map((s) => [s.space_id, s.name])
+        );
+      }
 
       // Transform events
       const eventSummaries: EventSummary[] = eventsData.map((event) => {
@@ -154,6 +166,11 @@ export function EventsOverview() {
     }
   }
 
+  function handleEventClick(eventId: string) {
+    const basePath = userType === 'venue' ? '/venue' : '/client';
+    router.push(`${basePath}/events/${eventId}`);
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -210,7 +227,7 @@ export function EventsOverview() {
           filteredEvents.map((event) => (
             <div
               key={event.event_id}
-              onClick={() => router.push(`/venue/events/${event.event_id}`)}
+              onClick={() => handleEventClick(event.event_id)}
               className={`rounded-lg border-2 p-6 cursor-pointer hover:shadow-md transition-all ${getStatusColor(
                 event.status
               )}`}

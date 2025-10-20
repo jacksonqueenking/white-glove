@@ -69,9 +69,8 @@ At the heart of the platform is a LangGraph-powered orchestrator that:
 
 **AI & Orchestration:**
 - OpenAI ChatKit (production chat UI)
-- OpenAI Agents SDK (agent orchestration)
-- LangGraph (state management, workflow orchestration)
-- Provider-agnostic LLM architecture
+- OpenAI Agents SDK (agent orchestration and AI logic)
+- OpenAI GPT-4o (LLM for all agents)
 
 **Other Services:**
 - Stripe (payment processing)
@@ -91,18 +90,18 @@ At the heart of the platform is a LangGraph-powered orchestrator that:
 ├── docs/
 │   ├── architecture.md
 │   ├── schema.md
+│   ├── database.md (Supabase setup & CRUD modules)
+│   ├── chatkit.md (ChatKit & Agents SDK integration)
 │   ├── onboarding-flows.md
 │   ├── authentication.md
 │   ├── payments.md
 │   ├── ai-agents.md
 │   ├── tasks-and-workflows.md
 │   ├── messaging.md
-│   ├── chatkit-setup.md (ChatKit integration guide)
 │   └── frontend/
 │       ├── client-interface.md
 │       ├── venue-interface.md
 │       └── vendor-interface.md
-├── CHATKIT_IMPLEMENTATION.md (implementation summary)
 ├── app/
 │   └── README.md
 ├── components/

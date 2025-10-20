@@ -49,13 +49,13 @@ export async function POST(request: NextRequest) {
 
         switch (agentType) {
           case 'client':
-            ({ agent } = await createClientAgent(user.id, eventId));
+            ({ agent } = await createClientAgent(supabase, user.id, eventId));
             break;
           case 'venue_general':
-            ({ agent } = await createVenueGeneralAgent(venueId));
+            ({ agent } = await createVenueGeneralAgent(supabase, venueId));
             break;
           case 'venue_event':
-            ({ agent } = await createVenueEventAgent(venueId, eventId));
+            ({ agent } = await createVenueEventAgent(supabase, venueId, eventId));
             break;
           default:
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Invalid agent type' })}\n\n`));
