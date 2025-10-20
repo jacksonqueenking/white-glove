@@ -99,7 +99,7 @@ export async function getInvitationByToken(supabase: SupabaseClient<Database>, t
  */
 export async function createInvitation(
   supabase: SupabaseClient<Database>,
-  invitation: Omit<CreateInvitation, 'token'> & { token?: string }
+  invitation: Omit<CreateInvitation, 'token' | 'expires_at'> & { token?: string; expires_at: string | Date }
 ): Promise<Invitation> {
   const token = invitation.token || generateInvitationToken();
 
@@ -109,9 +109,16 @@ export async function createInvitation(
     status: 'pending',
   });
 
+  // Convert Date objects to ISO strings for database insertion
+  const dbInsertion = {
+    ...validated,
+    expires_at: validated.expires_at.toISOString(),
+    used_at: validated.used_at?.toISOString() ?? null,
+  };
+
   const { data, error } = await supabase
     .from('invitations')
-    .insert(validated)
+    .insert(dbInsertion)
     .select()
     .single();
 

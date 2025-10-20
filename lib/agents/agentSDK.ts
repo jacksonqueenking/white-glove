@@ -162,7 +162,7 @@ export async function createVenueGeneralAgent(
   // Create agent
   const agent = new Agent({
     name: 'Venue Assistant',
-    model: 'gpt-4o',
+    model: 'gpt-5',
     instructions,
     tools,
   });
@@ -203,22 +203,4 @@ export async function createVenueEventAgent(
   });
 
   return { agent, context };
-}
-
-/**
- * Helper to run an agent with a message
- */
-export async function runAgent(
-  agent: Agent,
-  message: string
-) {
-  const { run } = await import('@openai/agents');
-
-  // Run agent with the message
-  const result = await run(agent, message);
-
-  return {
-    response: result.finalOutput,
-    result,
-  };
 }

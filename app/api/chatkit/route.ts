@@ -198,9 +198,19 @@ async function handleThreadsCreate(
             throw new Error(`Invalid agent type: ${agentType}`);
         }
 
-        // Run agent
-        const result = await run(agent, userMessage);
-        const responseText = result.finalOutput || 'I apologize, but I encountered an error.';
+        // Stream agent response using proper JavaScript SDK API
+        const stream = await run(agent, userMessage, { stream: true });
+
+        let responseText = '';
+
+        // Collect text from stream
+        for await (const chunk of stream.toTextStream()) {
+          responseText += chunk;
+        }
+
+        if (!responseText) {
+          responseText = 'I apologize, but I encountered an error.';
+        }
 
         console.log('[ChatKit] Agent response:', responseText);
 
@@ -467,9 +477,19 @@ async function handleThreadsAddUserMessage(
             throw new Error(`Invalid agent type: ${agentType}`);
         }
 
-        // Run agent
-        const result = await run(agent, userMessage);
-        const responseText = result.finalOutput || 'I apologize, but I encountered an error.';
+        // Stream agent response using proper JavaScript SDK API
+        const stream = await run(agent, userMessage, { stream: true });
+
+        let responseText = '';
+
+        // Collect text from stream
+        for await (const chunk of stream.toTextStream()) {
+          responseText += chunk;
+        }
+
+        if (!responseText) {
+          responseText = 'I apologize, but I encountered an error.';
+        }
 
         console.log('[ChatKit] Agent response:', responseText);
 
