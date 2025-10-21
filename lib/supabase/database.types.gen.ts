@@ -7,30 +7,10 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "13.0.5"
   }
   public: {
     Tables: {
@@ -75,44 +55,281 @@ export type Database = {
           },
         ]
       }
-      chats: {
+      chatkit_attachments: {
         Row: {
-          archived: boolean | null
-          chat_id: string
+          attachment_id: string
           created_at: string
-          event_id: string | null
-          messages: Json
+          deleted_at: string | null
+          file_size: number
+          filename: string
+          item_id: string | null
+          metadata: Json | null
+          mime_type: string
+          storage_path: string
+          storage_url: string | null
+          thread_id: string
           updated_at: string
-          user_id: string
-          user_type: string
+          upload_status: string
+          uploaded_by: string
         }
         Insert: {
-          archived?: boolean | null
-          chat_id?: string
+          attachment_id: string
           created_at?: string
-          event_id?: string | null
-          messages?: Json
+          deleted_at?: string | null
+          file_size: number
+          filename: string
+          item_id?: string | null
+          metadata?: Json | null
+          mime_type: string
+          storage_path: string
+          storage_url?: string | null
+          thread_id: string
           updated_at?: string
-          user_id: string
-          user_type: string
+          upload_status?: string
+          uploaded_by: string
         }
         Update: {
-          archived?: boolean | null
-          chat_id?: string
+          attachment_id?: string
           created_at?: string
-          event_id?: string | null
-          messages?: Json
+          deleted_at?: string | null
+          file_size?: number
+          filename?: string
+          item_id?: string | null
+          metadata?: Json | null
+          mime_type?: string
+          storage_path?: string
+          storage_url?: string | null
+          thread_id?: string
           updated_at?: string
-          user_id?: string
-          user_type?: string
+          upload_status?: string
+          uploaded_by?: string
         }
         Relationships: [
           {
-            foreignKeyName: "chats_event_id_fkey"
+            foreignKeyName: "chatkit_attachments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "chatkit_thread_items"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "chatkit_attachments_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "chatkit_threads"
+            referencedColumns: ["thread_id"]
+          },
+        ]
+      }
+      chatkit_thread_items: {
+        Row: {
+          content: Json
+          created_at: string
+          deleted_at: string | null
+          item_id: string
+          item_type: string
+          metadata: Json | null
+          role: string | null
+          sequence_number: number
+          status: string | null
+          thread_id: string
+        }
+        Insert: {
+          content: Json
+          created_at?: string
+          deleted_at?: string | null
+          item_id: string
+          item_type: string
+          metadata?: Json | null
+          role?: string | null
+          sequence_number: number
+          status?: string | null
+          thread_id: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          deleted_at?: string | null
+          item_id?: string
+          item_type?: string
+          metadata?: Json | null
+          role?: string | null
+          sequence_number?: number
+          status?: string | null
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatkit_thread_items_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "chatkit_threads"
+            referencedColumns: ["thread_id"]
+          },
+        ]
+      }
+      chatkit_threads: {
+        Row: {
+          agent_type: string
+          created_at: string
+          deleted_at: string | null
+          event_id: string | null
+          metadata: Json | null
+          thread_id: string
+          title: string | null
+          updated_at: string
+          user_id: string
+          user_type: string
+          venue_id: string | null
+        }
+        Insert: {
+          agent_type: string
+          created_at?: string
+          deleted_at?: string | null
+          event_id?: string | null
+          metadata?: Json | null
+          thread_id: string
+          title?: string | null
+          updated_at?: string
+          user_id: string
+          user_type: string
+          venue_id?: string | null
+        }
+        Update: {
+          agent_type?: string
+          created_at?: string
+          deleted_at?: string | null
+          event_id?: string | null
+          metadata?: Json | null
+          thread_id?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+          user_type?: string
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatkit_threads_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
             referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "chatkit_threads_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["venue_id"]
+          },
+        ]
+      }
+      client_inquiries: {
+        Row: {
+          alternative_dates: Json | null
+          budget: number
+          client_email: string
+          client_name: string
+          client_phone: string
+          company_name: string | null
+          created_at: string
+          decline_reason: string | null
+          description: string
+          event_date: string
+          event_id: string | null
+          event_time: string
+          event_type: string | null
+          guest_count: number
+          inquiry_id: string
+          invitation_expires_at: string | null
+          invitation_sent_at: string | null
+          invitation_token: string | null
+          ip_address: string | null
+          preferred_contact_method: string | null
+          reviewed_at: string | null
+          source: string | null
+          space_ids: string[]
+          status: string
+          updated_at: string
+          user_agent: string | null
+          venue_id: string
+          venue_notes: string | null
+        }
+        Insert: {
+          alternative_dates?: Json | null
+          budget: number
+          client_email: string
+          client_name: string
+          client_phone: string
+          company_name?: string | null
+          created_at?: string
+          decline_reason?: string | null
+          description: string
+          event_date: string
+          event_id?: string | null
+          event_time: string
+          event_type?: string | null
+          guest_count: number
+          inquiry_id?: string
+          invitation_expires_at?: string | null
+          invitation_sent_at?: string | null
+          invitation_token?: string | null
+          ip_address?: string | null
+          preferred_contact_method?: string | null
+          reviewed_at?: string | null
+          source?: string | null
+          space_ids: string[]
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+          venue_id: string
+          venue_notes?: string | null
+        }
+        Update: {
+          alternative_dates?: Json | null
+          budget?: number
+          client_email?: string
+          client_name?: string
+          client_phone?: string
+          company_name?: string | null
+          created_at?: string
+          decline_reason?: string | null
+          description?: string
+          event_date?: string
+          event_id?: string | null
+          event_time?: string
+          event_type?: string | null
+          guest_count?: number
+          inquiry_id?: string
+          invitation_expires_at?: string | null
+          invitation_sent_at?: string | null
+          invitation_token?: string | null
+          ip_address?: string | null
+          preferred_contact_method?: string | null
+          reviewed_at?: string | null
+          source?: string | null
+          space_ids?: string[]
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+          venue_id?: string
+          venue_notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_inquiries_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "client_inquiries_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["venue_id"]
           },
         ]
       }
@@ -684,7 +901,7 @@ export type Database = {
           created_by: string
           description: string
           due_date: string | null
-          event_id: string
+          event_id: string | null
           form_response: Json | null
           form_schema: Json | null
           name: string
@@ -701,7 +918,7 @@ export type Database = {
           created_by: string
           description: string
           due_date?: string | null
-          event_id: string
+          event_id?: string | null
           form_response?: Json | null
           form_schema?: Json | null
           name: string
@@ -718,7 +935,7 @@ export type Database = {
           created_by?: string
           description?: string
           due_date?: string | null
-          event_id?: string
+          event_id?: string | null
           form_response?: Json | null
           form_schema?: Json | null
           name?: string
@@ -856,6 +1073,30 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_space_availability: {
+        Args: {
+          p_event_date: string
+          p_event_time: string
+          p_space_ids: string[]
+        }
+        Returns: Json
+      }
+      generate_chatkit_attachment_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_chatkit_item_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_chatkit_thread_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_next_sequence_number: {
+        Args: { p_thread_id: string }
+        Returns: number
+      }
       get_user_type: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -1000,11 +1241,7 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
 } as const
-
