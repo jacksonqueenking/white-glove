@@ -63,6 +63,31 @@ export async function POST(request: NextRequest) {
       case 'threads.add_user_message':
         return handleMessageCreate(user.id, userType, params, metadata);
 
+      case 'threads.list':
+        // Return empty list for now - TODO: implement with ChatKitStore
+        return NextResponse.json({
+          data: [],
+          has_more: false,
+          after: null,
+        });
+
+      case 'items.feedback':
+        // Accept feedback but don't store it for now - TODO: implement
+        console.log('[ChatKit] Feedback received:', params);
+        return NextResponse.json({});
+
+      case 'threads.get_by_id':
+        // TODO: implement thread retrieval
+        return NextResponse.json({ error: 'Not implemented' }, { status: 501 });
+
+      case 'items.list':
+        // TODO: implement items list
+        return NextResponse.json({
+          data: [],
+          has_more: false,
+          after: null,
+        });
+
       default:
         console.error('[ChatKit] Unknown request type:', type);
         return NextResponse.json({ error: `Unknown request type: ${type}` }, { status: 400 });
@@ -120,72 +145,104 @@ async function handleThreadCreate(
 
   console.log('[ChatKit] Running agent...');
 
-  // Run the agent
-  const result = await run(agent, userMessage);
-
-  console.log('[ChatKit] Agent result:', result);
-
-  // Get the assistant's response
-  const assistantResponse = result.finalOutput || 'I apologize, but I was unable to generate a response.';
-
-  console.log('[ChatKit] Assistant response:', assistantResponse);
-
-  // Return SSE stream with ChatKit events
+  // Create IDs upfront
   const threadId = `thread_${Date.now()}`;
   const messageId = `msg_${Date.now()}`;
   const now = new Date().toISOString();
 
-  // Create SSE response with multiple events
-  const events = [
-    // Event 1: Thread created
-    {
-      type: 'thread.created',
-      thread: {
-        id: threadId,
-        created_at: now,
-        metadata: metadata || {},
-      },
-    },
-    // Event 2: Item added (assistant message)
-    {
-      type: 'thread.item.added',
-      item: {
-        id: messageId,
-        thread_id: threadId,
-        type: 'message',
-        role: 'assistant',
-        content: [
-          {
-            type: 'text',
-            text: assistantResponse,
-          },
-        ],
-        created_at: now,
-      },
-    },
-    // Event 3: Item done
-    {
-      type: 'thread.item.done',
-      item: {
-        id: messageId,
-        thread_id: threadId,
-        type: 'message',
-        role: 'assistant',
-        content: [
-          {
-            type: 'text',
-            text: assistantResponse,
-          },
-        ],
-        created_at: now,
-      },
-    },
-  ];
+  // Run the agent
+  const result = await run(agent, userMessage);
+  const fullText = result.finalOutput || 'No response generated.';
 
-  // Format as SSE stream
-  const stream = events
-    .map((event) => `data: ${JSON.stringify(event)}\n\n`)
-    .join('');
+  console.log('[ChatKit] Got response:', fullText);
+
+  // Create a ReadableStream that yields SSE events
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        // Event 1: Thread created
+        const threadCreatedEvent = {
+          type: 'thread.created',
+          thread: {
+            id: threadId,
+            created_at: now,
+            status: { type: 'active' },
+            items: { data: [], has_more: false, after: null },
+          },
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(threadCreatedEvent)}\n\n`));
+        console.log('[ChatKit] Sent thread.created');
+
+        // Event 2: User message added
+        const userMessageId = `msg_user_${Date.now()}`;
+        const userMessageEvent = {
+          type: 'thread.item.added',
+          item: {
+            id: userMessageId,
+            thread_id: threadId,
+            type: 'user_message',
+            content: [{ type: 'input_text', text: userMessage }],
+            created_at: now,
+            attachments: [],
+            inference_options: {},
+          },
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(userMessageEvent)}\n\n`));
+        console.log('[ChatKit] Sent user message');
+
+        // Event 3: User message done
+        const userMessageDoneEvent = {
+          type: 'thread.item.done',
+          item: {
+            id: userMessageId,
+            thread_id: threadId,
+            type: 'user_message',
+            content: [{ type: 'input_text', text: userMessage }],
+            created_at: now,
+            attachments: [],
+            inference_options: {},
+          },
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(userMessageDoneEvent)}\n\n`));
+        console.log('[ChatKit] Sent user message done');
+
+        // Event 4: Assistant message added
+        const assistantMessageEvent = {
+          type: 'thread.item.added',
+          item: {
+            id: messageId,
+            thread_id: threadId,
+            type: 'assistant_message',
+            content: [{ type: 'output_text', text: '', annotations: [] }],
+            created_at: now,
+          },
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(assistantMessageEvent)}\n\n`));
+        console.log('[ChatKit] Sent assistant message added');
+
+        // Event 5: Assistant message done
+        const assistantDoneEvent = {
+          type: 'thread.item.done',
+          item: {
+            id: messageId,
+            thread_id: threadId,
+            type: 'assistant_message',
+            content: [{ type: 'output_text', text: fullText, annotations: [] }],
+            created_at: now,
+          },
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(assistantDoneEvent)}\n\n`));
+        console.log('[ChatKit] Sent assistant message done');
+
+        controller.close();
+        console.log('[ChatKit] Stream closed');
+      } catch (error) {
+        console.error('[ChatKit] Stream error:', error);
+        controller.error(error);
+      }
+    },
+  });
 
   return new Response(stream, {
     headers: {
@@ -240,58 +297,88 @@ async function handleMessageCreate(
 
   // Run the agent
   const result = await run(agent, userMessage);
+  const fullText = result.finalOutput || 'No response generated.';
 
-  // Get the assistant's response
-  const assistantResponse = result.finalOutput || 'I apologize, but I was unable to generate a response.';
+  console.log('[ChatKit] Got response:', fullText);
 
-  console.log('[ChatKit] Assistant response:', assistantResponse);
-
-  // Return SSE stream with ChatKit events
+  // Create IDs
   const messageId = `msg_${Date.now()}`;
   const now = new Date().toISOString();
 
-  // Create SSE response with multiple events
-  const events = [
-    // Event 1: Item added (assistant message)
-    {
-      type: 'thread.item.added',
-      item: {
-        id: messageId,
-        thread_id: threadId,
-        type: 'message',
-        role: 'assistant',
-        content: [
-          {
-            type: 'text',
-            text: assistantResponse,
+  // Create a ReadableStream that yields SSE events
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        // Event 1: User message added
+        const userMessageId = `msg_user_${Date.now()}`;
+        const userMessageEvent = {
+          type: 'thread.item.added',
+          item: {
+            id: userMessageId,
+            thread_id: threadId,
+            type: 'user_message',
+            content: [{ type: 'input_text', text: userMessage }],
+            created_at: now,
+            attachments: [],
+            inference_options: {},
           },
-        ],
-        created_at: now,
-      },
-    },
-    // Event 2: Item done
-    {
-      type: 'thread.item.done',
-      item: {
-        id: messageId,
-        thread_id: threadId,
-        type: 'message',
-        role: 'assistant',
-        content: [
-          {
-            type: 'text',
-            text: assistantResponse,
-          },
-        ],
-        created_at: now,
-      },
-    },
-  ];
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(userMessageEvent)}\n\n`));
+        console.log('[ChatKit] Sent user message');
 
-  // Format as SSE stream
-  const stream = events
-    .map((event) => `data: ${JSON.stringify(event)}\n\n`)
-    .join('');
+        // Event 2: User message done
+        const userMessageDoneEvent = {
+          type: 'thread.item.done',
+          item: {
+            id: userMessageId,
+            thread_id: threadId,
+            type: 'user_message',
+            content: [{ type: 'input_text', text: userMessage }],
+            created_at: now,
+            attachments: [],
+            inference_options: {},
+          },
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(userMessageDoneEvent)}\n\n`));
+        console.log('[ChatKit] Sent user message done');
+
+        // Event 3: Assistant message added
+        const assistantMessageEvent = {
+          type: 'thread.item.added',
+          item: {
+            id: messageId,
+            thread_id: threadId,
+            type: 'assistant_message',
+            content: [{ type: 'output_text', text: '', annotations: [] }],
+            created_at: now,
+          },
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(assistantMessageEvent)}\n\n`));
+        console.log('[ChatKit] Sent assistant message added');
+
+        // Event 4: Assistant message done
+        const assistantDoneEvent = {
+          type: 'thread.item.done',
+          item: {
+            id: messageId,
+            thread_id: threadId,
+            type: 'assistant_message',
+            content: [{ type: 'output_text', text: fullText, annotations: [] }],
+            created_at: now,
+          },
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(assistantDoneEvent)}\n\n`));
+        console.log('[ChatKit] Sent assistant message done');
+
+        controller.close();
+        console.log('[ChatKit] Stream closed');
+      } catch (error) {
+        console.error('[ChatKit] Stream error:', error);
+        controller.error(error);
+      }
+    },
+  });
 
   return new Response(stream, {
     headers: {
