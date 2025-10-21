@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { Agent, run } from '@openai/agents';
+import { createChatKitStore } from '@/lib/chatkit/store';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -64,29 +65,16 @@ export async function POST(request: NextRequest) {
         return handleMessageCreate(user.id, userType, params, metadata);
 
       case 'threads.list':
-        // Return empty list for now - TODO: implement with ChatKitStore
-        return NextResponse.json({
-          data: [],
-          has_more: false,
-          after: null,
-        });
+        return handleThreadsList(user.id, params);
 
       case 'items.feedback':
-        // Accept feedback but don't store it for now - TODO: implement
-        console.log('[ChatKit] Feedback received:', params);
-        return NextResponse.json({});
+        return handleFeedback(user.id, params);
 
       case 'threads.get_by_id':
-        // TODO: implement thread retrieval
-        return NextResponse.json({ error: 'Not implemented' }, { status: 501 });
+        return handleThreadGetById(user.id, params);
 
       case 'items.list':
-        // TODO: implement items list
-        return NextResponse.json({
-          data: [],
-          has_more: false,
-          after: null,
-        });
+        return handleItemsList(user.id, params);
 
       default:
         console.error('[ChatKit] Unknown request type:', type);
@@ -122,6 +110,8 @@ async function handleThreadCreate(
 
   // Get agent configuration from metadata
   const agentType = metadata?.agentType || userType;
+  const eventId = metadata?.eventId;
+  const venueId = metadata?.venueId;
 
   // Create appropriate instructions based on agent type
   let instructions = 'You are a helpful AI assistant for White Glove, an event planning platform.';
@@ -136,6 +126,22 @@ async function handleThreadCreate(
 
   console.log('[ChatKit] Creating agent with type:', agentType);
 
+  // Initialize ChatKit store
+  const store = await createChatKitStore();
+
+  // Create thread in database
+  const thread = await store.createThread({
+    user_id: userId,
+    user_type: userType,
+    agent_type: agentType,
+    event_id: eventId,
+    venue_id: venueId,
+    title: userMessage.substring(0, 100) || 'New conversation',
+  });
+
+  const threadId = thread.thread_id;
+  console.log('[ChatKit] Created thread:', threadId);
+
   // Create agent
   const agent = new Agent({
     name: 'White Glove Assistant',
@@ -145,16 +151,33 @@ async function handleThreadCreate(
 
   console.log('[ChatKit] Running agent...');
 
-  // Create IDs upfront
-  const threadId = `thread_${Date.now()}`;
-  const messageId = `msg_${Date.now()}`;
-  const now = new Date().toISOString();
-
   // Run the agent
   const result = await run(agent, userMessage);
   const fullText = result.finalOutput || 'No response generated.';
 
   console.log('[ChatKit] Got response:', fullText);
+
+  // Save user message to database
+  const userMessageId = `msg_user_${Date.now()}`;
+  await store.addThreadItem(threadId, {
+    item_type: 'message',
+    role: 'user',
+    content: [{ type: 'input_text', text: userMessage }],
+    status: 'completed',
+    metadata: {},
+  });
+
+  // Save assistant message to database
+  const messageId = `msg_${Date.now() + 1}`;
+  await store.addThreadItem(threadId, {
+    item_type: 'message',
+    role: 'assistant',
+    content: [{ type: 'output_text', text: fullText, annotations: [] }],
+    status: 'completed',
+    metadata: {},
+  });
+
+  const now = new Date().toISOString();
 
   // Create a ReadableStream that yields SSE events
   const encoder = new TextEncoder();
@@ -175,7 +198,6 @@ async function handleThreadCreate(
         console.log('[ChatKit] Sent thread.created');
 
         // Event 2: User message added
-        const userMessageId = `msg_user_${Date.now()}`;
         const userMessageEvent = {
           type: 'thread.item.added',
           item: {
@@ -274,8 +296,34 @@ async function handleMessageCreate(
   console.log('[ChatKit] User message:', userMessage);
   console.log('[ChatKit] Thread ID:', threadId);
 
-  // Get agent configuration from metadata
-  const agentType = metadata?.agentType || userType;
+  // Initialize ChatKit store
+  const store = await createChatKitStore();
+
+  // Load thread to get context
+  const thread = await store.loadThread(threadId);
+  if (!thread) {
+    return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
+  }
+
+  // Verify user owns the thread
+  if (thread.user_id !== userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+
+  // Load previous messages for context
+  const previousItems = await store.loadThreadItems(threadId);
+  const conversationHistory = previousItems
+    .filter(item => item.item_type === 'message' && item.role)
+    .map(item => {
+      const textContent = Array.isArray(item.content)
+        ? item.content.find((c: any) => c.text)?.text
+        : '';
+      return `${item.role}: ${textContent}`;
+    })
+    .join('\n');
+
+  // Get agent configuration from metadata or thread
+  const agentType = metadata?.agentType || thread.agent_type;
 
   // Create appropriate instructions based on agent type
   let instructions = 'You are a helpful AI assistant for White Glove, an event planning platform.';
@@ -286,6 +334,11 @@ async function handleMessageCreate(
     instructions = 'You are a helpful assistant for venue managers. Help them manage their venue, handle events, and coordinate with clients and vendors.';
   } else if (agentType === 'venue_event') {
     instructions = 'You are a helpful assistant for managing a specific event. Help coordinate all aspects of the event, from planning to execution.';
+  }
+
+  // Add conversation history to instructions
+  if (conversationHistory) {
+    instructions += `\n\nPrevious conversation:\n${conversationHistory}`;
   }
 
   // Create agent
@@ -300,6 +353,24 @@ async function handleMessageCreate(
   const fullText = result.finalOutput || 'No response generated.';
 
   console.log('[ChatKit] Got response:', fullText);
+
+  // Save user message to database
+  await store.addThreadItem(threadId, {
+    item_type: 'message',
+    role: 'user',
+    content: [{ type: 'input_text', text: userMessage }],
+    status: 'completed',
+    metadata: {},
+  });
+
+  // Save assistant message to database
+  await store.addThreadItem(threadId, {
+    item_type: 'message',
+    role: 'assistant',
+    content: [{ type: 'output_text', text: fullText, annotations: [] }],
+    status: 'completed',
+    metadata: {},
+  });
 
   // Create IDs
   const messageId = `msg_${Date.now()}`;
@@ -387,4 +458,164 @@ async function handleMessageCreate(
       'Connection': 'keep-alive',
     },
   });
+}
+/**
+ * Handle threads.list request
+ */
+async function handleThreadsList(userId: string, params: any) {
+  console.log('[ChatKit] Listing threads for user:', userId);
+
+  const store = await createChatKitStore();
+
+  const limit = params?.limit || 20;
+  const offset = params?.offset || 0;
+
+  const threads = await store.listThreads(userId, { limit, offset });
+
+  // Convert to ChatKit protocol format
+  const data = threads.map(thread => ({
+    id: thread.thread_id,
+    created_at: thread.created_at,
+    title: thread.title,
+    metadata: thread.metadata,
+    status: { type: 'active' },
+  }));
+
+  return NextResponse.json({
+    data,
+    has_more: threads.length === limit,
+    after: threads.length > 0 ? threads[threads.length - 1].thread_id : null,
+  });
+}
+
+/**
+ * Handle threads.get_by_id request
+ */
+async function handleThreadGetById(userId: string, params: any) {
+  console.log('[ChatKit] Getting thread by ID:', params?.thread_id);
+
+  const threadId = params?.thread_id;
+  if (!threadId) {
+    return NextResponse.json({ error: 'thread_id is required' }, { status: 400 });
+  }
+
+  const store = await createChatKitStore();
+  const thread = await store.loadThread(threadId);
+
+  if (!thread) {
+    return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
+  }
+
+  // Verify user owns the thread
+  if (thread.user_id !== userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+
+  // Load thread items
+  const items = await store.loadThreadItems(threadId);
+
+  // Convert to ChatKit protocol format
+  const itemsData = items.map(item => ({
+    id: item.item_id,
+    thread_id: item.thread_id,
+    type: item.role === 'user' ? 'user_message' : item.role === 'assistant' ? 'assistant_message' : 'message',
+    content: item.content,
+    created_at: item.created_at,
+    status: item.status,
+  }));
+
+  return NextResponse.json({
+    id: thread.thread_id,
+    created_at: thread.created_at,
+    title: thread.title,
+    metadata: thread.metadata,
+    status: { type: 'active' },
+    items: {
+      data: itemsData,
+      has_more: false,
+      after: null,
+    },
+  });
+}
+
+/**
+ * Handle items.list request
+ */
+async function handleItemsList(userId: string, params: any) {
+  console.log('[ChatKit] Listing items for thread:', params?.thread_id);
+
+  const threadId = params?.thread_id;
+  if (!threadId) {
+    return NextResponse.json({ error: 'thread_id is required' }, { status: 400 });
+  }
+
+  const store = await createChatKitStore();
+  const thread = await store.loadThread(threadId);
+
+  if (!thread) {
+    return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
+  }
+
+  // Verify user owns the thread
+  if (thread.user_id !== userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+
+  const limit = params?.limit || 100;
+  const offset = params?.offset || 0;
+
+  const items = await store.loadThreadItems(threadId, { limit, offset });
+
+  // Convert to ChatKit protocol format
+  const data = items.map(item => ({
+    id: item.item_id,
+    thread_id: item.thread_id,
+    type: item.role === 'user' ? 'user_message' : item.role === 'assistant' ? 'assistant_message' : 'message',
+    content: item.content,
+    created_at: item.created_at,
+    status: item.status,
+  }));
+
+  return NextResponse.json({
+    data,
+    has_more: items.length === limit,
+    after: items.length > 0 ? items[items.length - 1].item_id : null,
+  });
+}
+
+/**
+ * Handle items.feedback request
+ */
+async function handleFeedback(userId: string, params: any) {
+  console.log('[ChatKit] Feedback received:', params);
+
+  const itemId = params?.item_id;
+  const feedbackType = params?.feedback_type; // e.g., 'thumbs_up', 'thumbs_down'
+  const comment = params?.comment;
+
+  if (!itemId) {
+    return NextResponse.json({ error: 'item_id is required' }, { status: 400 });
+  }
+
+  const store = await createChatKitStore();
+
+  // Update item metadata with feedback
+  try {
+    const item = await store.updateThreadItem(itemId, {
+      metadata: {
+        feedback: {
+          type: feedbackType,
+          comment,
+          user_id: userId,
+          timestamp: new Date().toISOString(),
+        },
+      },
+    });
+
+    console.log('[ChatKit] Feedback saved for item:', itemId);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('[ChatKit] Failed to save feedback:', error);
+    return NextResponse.json({ error: 'Failed to save feedback' }, { status: 500 });
+  }
 }
