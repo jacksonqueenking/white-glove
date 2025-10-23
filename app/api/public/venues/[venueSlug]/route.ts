@@ -42,7 +42,7 @@ export async function GET(
     const { data: spaces, error: spacesError } = await supabase
       .from('spaces')
       .select('space_id, name, description, capacity, main_image_url')
-      .eq('venue_id', venue.venue_id)
+      .eq('venue_id', (venue as any).venue_id)
       .is('deleted_at', null)
       .order('name');
 

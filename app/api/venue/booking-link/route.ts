@@ -32,14 +32,14 @@ export async function GET() {
     }
 
     // Use slug if available, otherwise use venue_id
-    const identifier = venue.slug || venue.venue_id;
+    const identifier = (venue as any).slug || (venue as any).venue_id;
     const bookingUrl = `${process.env.NEXT_PUBLIC_URL}/book/${identifier}`;
 
     return NextResponse.json({
       bookingUrl,
       identifier,
-      useSlug: !!venue.slug,
-      venueName: venue.name,
+      useSlug: !!(venue as any).slug,
+      venueName: (venue as any).name,
     });
 
   } catch (error) {

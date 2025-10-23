@@ -1,281 +1,326 @@
 'use client';
 
-/**
- * Chat Interface Component
- *
- * Modern chat interface using Vercel AI SDK's useChat hook.
- * Replaces the OpenAI ChatKit implementation.
- */
-
+import {
+  Branch,
+  BranchMessages,
+  BranchNext,
+  BranchPage,
+  BranchPrevious,
+  BranchSelector,
+} from '@/components/ai-elements/branch';
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from '@/components/ai-elements/conversation';
+import {
+  PromptInput,
+  PromptInputActionAddAttachments,
+  PromptInputActionMenu,
+  PromptInputActionMenuContent,
+  PromptInputActionMenuTrigger,
+  PromptInputAttachment,
+  PromptInputAttachments,
+  PromptInputBody,
+  PromptInputButton,
+  type PromptInputMessage,
+  PromptInputSpeechButton,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputFooter,
+  PromptInputTools,
+} from '@/components/ai-elements/prompt-input';
+import {
+  Message,
+  MessageAvatar,
+  MessageContent,
+} from '@/components/ai-elements/message';
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from '@/components/ai-elements/reasoning';
+import { Response } from '@/components/ai-elements/response';
+import {
+  Source,
+  Sources,
+  SourcesContent,
+  SourcesTrigger,
+} from '@/components/ai-elements/sources';
+import {
+  Suggestion,
+  Suggestions,
+} from '@/components/ai-elements/suggestion';
+import { GlobeIcon } from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { toast } from 'sonner';
+import type { ToolUIPart, UIMessage } from 'ai';
+import { nanoid } from 'nanoid';
 import { useChat } from '@ai-sdk/react';
-import { useState, useEffect, useRef } from 'react';
 
 interface ChatInterfaceProps {
-  /** Type of agent to use */
   agentType: 'client' | 'venue_general' | 'venue_event';
-  /** Event ID (required for client and venue_event agents) */
   eventId?: string;
-  /** Venue ID (required for venue agents) */
   venueId?: string;
-  /** Chat ID for loading existing conversations */
   chatId?: string;
-  /** Initial messages for restoring chat history */
-  initialMessages?: any[];
-  /** Optional CSS classes */
   className?: string;
-  /** Chat window title */
   title?: string;
-  /** Chat window subtitle */
   subtitle?: string;
 }
+
+const getInitialMessages = (agentType: string): UIMessage[] => {
+  const welcomeMessages: Record<string, string> = {
+    client: "Welcome! I'm your White Glove Assistant. I can help you coordinate your event details, communicate with your venue, and keep track of all the important aspects of your celebration. How can I help you today?",
+    venue_general: "Hello! I'm your venue management assistant. I can help you manage inquiries, bookings, event details, and coordinate with clients. What would you like to work on?",
+    venue_event: "Hi! I'm here to help coordinate this event. I can assist with event details, client communication, vendor coordination, and timeline management. What do you need help with?",
+  };
+
+  return [
+    {
+      id: nanoid(),
+      role: 'assistant',
+      parts: [
+        {
+          type: 'text',
+          text: welcomeMessages[agentType] || "Hello! How can I assist you today?",
+        },
+      ],
+    },
+  ];
+};
+
+const getSuggestions = (agentType: string): string[] => {
+  const suggestionsByType: Record<string, string[]> = {
+    client: [
+      'What details do I need to finalize for my event?',
+      'Can you help me communicate with my venue?',
+      'What vendors do I still need to book?',
+      'Show me my event timeline',
+      'What are the next steps for planning?',
+    ],
+    venue_general: [
+      'Show me recent inquiries',
+      'What events are coming up this week?',
+      'Help me respond to a client question',
+      'What bookings need attention?',
+      'Show me venue availability',
+    ],
+    venue_event: [
+      'What are the event details?',
+      'What does the client need from us?',
+      'Show me the event timeline',
+      'What vendors are involved?',
+      'Help me coordinate with the client',
+    ],
+  };
+
+  return suggestionsByType[agentType] || [
+    'How can you help me?',
+    'What can I ask you?',
+  ];
+};
 
 export function ChatInterface({
   agentType,
   eventId,
   venueId,
   chatId,
-  initialMessages = [],
-  className = 'h-[600px] w-full',
+  className,
   title,
   subtitle,
 }: ChatInterfaceProps) {
-  const [input, setInput] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [text, setText] = useState<string>('');
+  const [useWebSearch, setUseWebSearch] = useState<boolean>(false);
+  const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
+  const [isLoadingPrompt, setIsLoadingPrompt] = useState<boolean>(true);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const hasFetchedPrompt = useRef<boolean>(false);
 
-  // Use Vercel AI SDK's useChat hook
-  const {
-    messages,
-    isLoading,
-    error,
-    append,
-    reload,
-    stop,
-  } = useChat({
-    api: '/api/chat',
-    id: chatId || `chat-${Date.now()}`,
-    initialMessages,
-    body: {
-      agentType,
-      eventId,
-      venueId,
-    },
+  console.log('[ChatInterface] Render - systemPrompt:', systemPrompt ? 'loaded' : 'not loaded');
+
+  // Pre-build system prompt on mount (only once)
+  useEffect(() => {
+    if (hasFetchedPrompt.current) {
+      console.log('[ChatInterface] Skipping prompt fetch - already loaded');
+      return;
+    }
+
+    const fetchSystemPrompt = async () => {
+      console.log('[ChatInterface] Fetching system prompt...');
+      setIsLoadingPrompt(true);
+      hasFetchedPrompt.current = true;
+
+      try {
+        const response = await fetch('/api/chat/context', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentType, eventId, venueId }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setSystemPrompt(data.systemPrompt);
+          console.log('[ChatInterface] System prompt pre-loaded, length:', data.systemPrompt?.length);
+        } else {
+          console.error('[ChatInterface] Failed to pre-load system prompt, status:', response.status);
+        }
+      } catch (error) {
+        console.error('[ChatInterface] Error pre-loading system prompt:', error);
+      } finally {
+        setIsLoadingPrompt(false);
+      }
+    };
+
+    fetchSystemPrompt();
+  }, [agentType, eventId, venueId]);
+
+  // Use the Vercel AI SDK's useChat hook
+  const { messages, sendMessage, status, stop, setMessages } = useChat({
+    id: chatId || `chat-${agentType}-${eventId || venueId}`,
     onError: (error) => {
       console.error('[ChatInterface] Error:', error);
-    },
-    onFinish: (message) => {
-      console.log('[ChatInterface] Message finished:', message);
+      toast.error('Failed to send message', {
+        description: error.message,
+      });
     },
   });
 
-  // Auto-scroll to bottom when new messages arrive
+  // Set initial messages if there are none
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messages.length === 0) {
+      setMessages(getInitialMessages(agentType));
+    }
+  }, [messages.length, agentType, setMessages]);
 
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  console.log('[ChatInterface] Messages:', messages);
+  console.log('[ChatInterface] Status:', status);
 
-    const userMessage = input.trim();
-    setInput('');
+  const handleSubmit = (message: PromptInputMessage) => {
+    console.log('[ChatInterface] handleSubmit called with:', message);
 
-    await append({
-      role: 'user',
-      content: userMessage,
+    // If currently streaming or submitted, stop instead of submitting
+    if (status === 'streaming' || status === 'submitted') {
+      console.log('[ChatInterface] Stopping because status is:', status);
+      stop();
+      return;
+    }
+
+    const hasText = Boolean(message.text);
+    const hasAttachments = Boolean(message.files?.length);
+
+    if (!(hasText || hasAttachments)) {
+      console.log('[ChatInterface] No text or attachments, returning');
+      return;
+    }
+
+    if (message.files?.length) {
+      toast.success('Files attached', {
+        description: `${message.files.length} file(s) attached to message`,
+      });
+    }
+
+    console.log('[ChatInterface] Calling sendMessage with:', {
+      text: message.text,
+      body: { agentType, eventId, venueId, systemPrompt: systemPrompt ? 'pre-loaded' : 'will build' },
+    });
+
+    sendMessage({ text: message.text || 'Sent with attachments' }, {
+      body: {
+        agentType,
+        eventId,
+        venueId,
+        systemPrompt, // Pass pre-built prompt if available
+      },
+    });
+    setText('');
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    sendMessage({ text: suggestion }, {
+      body: {
+        agentType,
+        eventId,
+        venueId,
+        systemPrompt, // Pass pre-built prompt if available
+      },
     });
   };
 
-  // Get display title and subtitle
-  const displayTitle = title || getDefaultTitle(agentType);
-  const displaySubtitle = subtitle || getDefaultSubtitle(agentType);
-
   return (
-    <div className={`flex flex-col bg-white rounded-lg shadow-lg ${className}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-[#f0bda4] to-[#e8a88c]">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">{displayTitle}</h2>
-          <p className="text-sm text-gray-700">{displaySubtitle}</p>
+    <div className="relative flex size-full flex-col divide-y overflow-hidden">
+      <Conversation>
+        <ConversationContent>
+          {messages.map((message) => {
+            console.log('[ChatInterface] Rendering message:', message);
+            return (
+              <Message
+                from={message.role}
+                key={message.id}
+              >
+                <MessageContent variant="flat">
+                  {message.parts.map((part, i) => {
+                    if (part.type === 'text') {
+                      return <Response key={i}>{part.text}</Response>;
+                    }
+                    return null;
+                  })}
+                </MessageContent>
+              </Message>
+            );
+          })}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+      <div className="grid shrink-0 gap-4 pt-4">
+        <Suggestions className="px-4">
+          {getSuggestions(agentType).map((suggestion) => (
+            <Suggestion
+              key={suggestion}
+              onClick={() => handleSuggestionClick(suggestion)}
+              suggestion={suggestion}
+            />
+          ))}
+        </Suggestions>
+        <div className="w-full px-4 pb-4">
+          <PromptInput globalDrop multiple onSubmit={handleSubmit}>
+            <PromptInputBody>
+              <PromptInputAttachments>
+                {(attachment) => <PromptInputAttachment data={attachment} />}
+              </PromptInputAttachments>
+              <PromptInputTextarea
+                onChange={(event) => setText(event.target.value)}
+                ref={textareaRef}
+                value={text}
+              />
+            </PromptInputBody>
+            <PromptInputFooter>
+              <PromptInputTools>
+                <PromptInputActionMenu>
+                  <PromptInputActionMenuTrigger />
+                  <PromptInputActionMenuContent>
+                    <PromptInputActionAddAttachments />
+                  </PromptInputActionMenuContent>
+                </PromptInputActionMenu>
+                <PromptInputSpeechButton
+                  onTranscriptionChange={setText}
+                  textareaRef={textareaRef}
+                />
+                <PromptInputButton
+                  onClick={() => setUseWebSearch(!useWebSearch)}
+                  variant={useWebSearch ? 'default' : 'ghost'}
+                >
+                  <GlobeIcon size={16} />
+                  <span>Search</span>
+                </PromptInputButton>
+              </PromptInputTools>
+              <PromptInputSubmit
+                disabled={isLoadingPrompt || (!text.trim() && !status) || status === 'streaming'}
+                status={status}
+              />
+            </PromptInputFooter>
+          </PromptInput>
         </div>
       </div>
-
-      {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
-            <div className="text-gray-400">
-              <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <p className="text-lg font-medium text-gray-600">Start a conversation</p>
-              <p className="text-sm text-gray-500 mt-2">{displaySubtitle}</p>
-            </div>
-            {getStarterPrompts(agentType).length > 0 && (
-              <div className="flex flex-wrap gap-2 justify-center max-w-md">
-                {getStarterPrompts(agentType).map((prompt, index) => (
-                  <button
-                    key={index}
-                    onClick={() => {
-                      setInput(prompt.prompt);
-                    }}
-                    className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                  >
-                    {prompt.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[80%] rounded-lg px-4 py-3 ${
-                message.role === 'user'
-                  ? 'bg-[#f0bda4] text-gray-900'
-                  : 'bg-gray-100 text-gray-900'
-              }`}
-            >
-              <div className="text-sm whitespace-pre-wrap break-words">
-                {message.content}
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-lg px-4 py-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="flex justify-center">
-            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 max-w-md">
-              <div className="flex items-start space-x-3">
-                <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div className="flex-1">
-                  <p className="text-sm text-red-800">
-                    {error.message || 'An error occurred while processing your message.'}
-                  </p>
-                  <button
-                    onClick={() => reload()}
-                    className="text-sm text-red-600 hover:text-red-700 underline mt-2"
-                  >
-                    Try again
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input Form */}
-      <form onSubmit={handleSubmit} className="border-t bg-gray-50 px-6 py-4">
-        <div className="flex items-center space-x-3">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isLoading}
-            placeholder={displaySubtitle}
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f0bda4] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-          />
-          {isLoading ? (
-            <button
-              type="button"
-              onClick={() => stop()}
-              className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-            >
-              Stop
-            </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={!input.trim() || isLoading}
-              className="px-6 py-3 bg-[#f0bda4] text-gray-900 rounded-lg hover:bg-[#e8a88c] transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-            >
-              Send
-            </button>
-          )}
-        </div>
-      </form>
     </div>
   );
-}
-
-/**
- * Get default title based on agent type
- */
-function getDefaultTitle(agentType: string): string {
-  switch (agentType) {
-    case 'client':
-      return 'White Glove Assistant';
-    case 'venue_general':
-      return 'Venue Management Assistant';
-    case 'venue_event':
-      return 'Event Coordinator';
-    default:
-      return 'AI Assistant';
-  }
-}
-
-/**
- * Get default subtitle based on agent type
- */
-function getDefaultSubtitle(agentType: string): string {
-  switch (agentType) {
-    case 'client':
-      return 'Chat naturally and I\'ll coordinate updates with your venue and vendors automatically.';
-    case 'venue_general':
-      return 'Ask me anything about your venue operations...';
-    case 'venue_event':
-      return 'How can I help with this event?';
-    default:
-      return 'How can I help you today?';
-  }
-}
-
-/**
- * Get starter prompts based on agent type
- */
-function getStarterPrompts(agentType: string) {
-  switch (agentType) {
-    case 'client':
-      return [
-        { label: 'Plan my event', prompt: 'Help me start planning my event' },
-        { label: 'Check status', prompt: 'What\'s the current status of my event planning?' },
-        { label: 'Make changes', prompt: 'I\'d like to make some changes to my event' },
-      ];
-    case 'venue_general':
-      return [
-        { label: 'View events', prompt: 'Show me upcoming events' },
-        { label: 'Manage vendors', prompt: 'Help me manage vendor relationships' },
-        { label: 'Venue info', prompt: 'Tell me about my venue capabilities' },
-      ];
-    case 'venue_event':
-      return [
-        { label: 'Event details', prompt: 'Give me the current event details' },
-        { label: 'Coordinate vendors', prompt: 'Help me coordinate with vendors for this event' },
-        { label: 'Client updates', prompt: 'Are there any updates from the client?' },
-      ];
-    default:
-      return [];
-  }
 }

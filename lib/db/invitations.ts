@@ -113,7 +113,6 @@ export async function createInvitation(
   const dbInsertion = {
     ...validated,
     expires_at: validated.expires_at.toISOString(),
-    used_at: validated.used_at?.toISOString() ?? null,
   };
 
   const { data, error } = await supabase

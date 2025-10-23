@@ -157,9 +157,15 @@ export async function createTask(
   // Validate input
   const validated = CreateTaskSchema.parse(task);
 
+  // Convert Date objects to ISO strings for database insertion
+  const dbInsertion = {
+    ...validated,
+    due_date: validated.due_date?.toISOString() ?? null,
+  };
+
   const { data, error } = await supabase
     .from('tasks')
-    .insert(validated)
+    .insert(dbInsertion)
     .select()
     .single();
 
@@ -204,9 +210,15 @@ export async function updateTask(
   // Validate input
   const validated = UpdateTaskSchema.parse(updates);
 
+  // Convert Date objects to ISO strings for database update
+  const dbUpdate: any = { ...validated };
+  if (validated.due_date) {
+    dbUpdate.due_date = validated.due_date.toISOString();
+  }
+
   const { data, error } = await supabase
     .from('tasks')
-    .update(validated)
+    .update(dbUpdate)
     .eq('task_id', task_id)
     .select()
     .single();
@@ -252,10 +264,16 @@ export async function completeTask(
     form_response,
   };
 
+  // Convert Date objects to ISO strings for database update
+  const dbUpdate: any = { ...updates };
+  if (updates.due_date) {
+    dbUpdate.due_date = updates.due_date.toISOString();
+  }
+
   const { data, error } = await supabase
     .from('tasks')
     .update({
-      ...updates,
+      ...dbUpdate,
       completed_at: new Date().toISOString(),
     })
     .eq('task_id', task_id)

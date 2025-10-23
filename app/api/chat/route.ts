@@ -1,14 +1,10 @@
 /**
  * Vercel AI SDK Chat API Route
- *
- * Handles streaming chat completions with context-aware AI agents.
- * Replaces the OpenAI ChatKit implementation with Vercel AI SDK.
+ * Based on: https://ai-sdk.dev/elements/examples/chatbot
  */
 
-import { NextRequest } from 'next/server';
+import { streamText, type UIMessage, convertToModelMessages } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { convertToModelMessages, streamText } from 'ai';
-import type { UIMessage } from 'ai';
 import { createClient } from '@/lib/supabase/server';
 import {
   buildClientContext,
@@ -20,19 +16,17 @@ import {
   generateVenueGeneralSystemPrompt,
   generateVenueEventSystemPrompt,
 } from '@/lib/agents/prompts';
+import { getToolsForAgent, type ToolContext } from '@/lib/agents/tools.ai';
 
-export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 30;
 
-interface ChatRequest {
-  messages: UIMessage[];
-  chatId?: string;
-  agentType: 'client' | 'venue_general' | 'venue_event';
-  eventId?: string;
-  venueId?: string;
-}
+// Cache system prompts to avoid rebuilding on every message
+const systemPromptCache = new Map<string, { prompt: string; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
+  console.log('[Chat API] ========== NEW REQUEST ==========');
+
   try {
     // Get authenticated user
     const supabase = await createClient();
@@ -45,13 +39,24 @@ export async function POST(request: NextRequest) {
 
     const userType = user.user_metadata?.user_type as 'client' | 'venue' | 'vendor';
     if (!userType) {
-      console.error('[Chat API] Invalid user type:', user.user_metadata);
+      console.error('[Chat API] Invalid user type');
       return new Response('Invalid user type', { status: 403 });
     }
 
-    // Parse request body
-    const body = await request.json() as ChatRequest;
-    const { messages, chatId, agentType, eventId, venueId } = body;
+    // Parse request
+    const {
+      messages,
+      agentType,
+      eventId,
+      venueId,
+      systemPrompt: prebuiltSystemPrompt,
+    }: {
+      messages: UIMessage[];
+      agentType: 'client' | 'venue_general' | 'venue_event';
+      eventId?: string;
+      venueId?: string;
+      systemPrompt?: string;
+    } = await req.json();
 
     console.log('[Chat API] Request:', {
       userId: user.id,
@@ -59,55 +64,72 @@ export async function POST(request: NextRequest) {
       agentType,
       eventId,
       venueId,
-      chatId,
       messageCount: messages.length,
+      hasPrebuiltPrompt: !!prebuiltSystemPrompt,
     });
 
-    // Build context and generate system prompt based on agent type
     let systemPrompt: string;
 
-    try {
-      if (agentType === 'client' && eventId) {
-        console.log('[Chat API] Building client context for event:', eventId);
-        const context = await buildClientContext(supabase, user.id, eventId);
-        systemPrompt = generateClientSystemPrompt(context as any);
-      } else if (agentType === 'venue_general' && venueId) {
-        console.log('[Chat API] Building venue general context for venue:', venueId);
-        const context = await buildVenueGeneralContext(supabase, venueId);
-        systemPrompt = generateVenueGeneralSystemPrompt(context as any);
-      } else if (agentType === 'venue_event' && venueId && eventId) {
-        console.log('[Chat API] Building venue event context for event:', eventId);
-        const context = await buildVenueEventContext(supabase, venueId, eventId);
-        systemPrompt = generateVenueEventSystemPrompt(context as any);
+    // Use pre-built system prompt if provided (fastest path)
+    if (prebuiltSystemPrompt) {
+      console.log('[Chat API] Using pre-built system prompt from client');
+      systemPrompt = prebuiltSystemPrompt;
+    } else {
+      // Fall back to cache or building new prompt
+      const cacheKey = `${agentType}-${eventId || venueId || user.id}`;
+      const now = Date.now();
+      const cached = systemPromptCache.get(cacheKey);
+
+      // Use cached prompt if it exists and is still fresh
+      if (cached && (now - cached.timestamp) < CACHE_TTL) {
+        console.log('[Chat API] Using cached system prompt');
+        systemPrompt = cached.prompt;
       } else {
-        console.error('[Chat API] Missing required IDs for agent type:', agentType, { eventId, venueId });
-        return new Response('Missing required parameters (eventId or venueId)', { status: 400 });
+        console.log('[Chat API] Building new system prompt');
+
+        if (agentType === 'client' && eventId) {
+          const context = await buildClientContext(supabase, user.id, eventId);
+          systemPrompt = generateClientSystemPrompt(context as any);
+        } else if (agentType === 'venue_general' && venueId) {
+          const context = await buildVenueGeneralContext(supabase, venueId);
+          systemPrompt = generateVenueGeneralSystemPrompt(context as any);
+        } else if (agentType === 'venue_event' && venueId && eventId) {
+          const context = await buildVenueEventContext(supabase, venueId, eventId);
+          systemPrompt = generateVenueEventSystemPrompt(context as any);
+        } else {
+          console.error('[Chat API] Missing required IDs');
+          return new Response('Missing required parameters', { status: 400 });
+        }
+
+        // Cache the newly built prompt
+        systemPromptCache.set(cacheKey, { prompt: systemPrompt, timestamp: now });
+        console.log('[Chat API] System prompt cached');
       }
-    } catch (error) {
-      console.error('[Chat API] Failed to build context:', error);
-      return new Response('Failed to build agent context: ' + (error instanceof Error ? error.message : String(error)), { status: 500 });
     }
 
-    console.log('[Chat API] System prompt generated, length:', systemPrompt.length);
+    console.log('[Chat API] System prompt length:', systemPrompt.length);
 
-    // Convert UI messages to model messages
-    const modelMessages = convertToModelMessages(messages);
-    console.log('[Chat API] Converted messages:', modelMessages.length);
+    // Create tool context
+    const toolContext: ToolContext = {
+      userId: user.id,
+      userType,
+    };
 
-    // Stream text response using Vercel AI SDK
+    // Get tools for the agent type
+    const tools = getToolsForAgent(agentType, supabase, toolContext);
+
+    // Stream response
     const result = streamText({
-      model: openai('gpt-4o'),
+      model: openai('gpt-5'),
       system: systemPrompt,
-      messages: modelMessages,
-      // Tools will be added in the next phase
-      maxSteps: 5, // Allow multiple tool calls when we add tools
+      messages: convertToModelMessages(messages),
+      tools,
     });
 
-    console.log('[Chat API] Streaming response...');
+    console.log('[Chat API] Returning stream response with', Object.keys(tools).length, 'tools');
 
-    // Return streaming response
-    // We'll add message persistence in the next phase
-    return result.toDataStreamResponse();
+    // Return UIMessage stream (for AI Elements compatibility)
+    return result.toUIMessageStreamResponse();
 
   } catch (error) {
     console.error('[Chat API] Error:', error);

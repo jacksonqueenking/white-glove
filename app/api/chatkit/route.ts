@@ -202,7 +202,7 @@ async function handleThreadCreate(
   runner.on('agent_tool_start', (context, agent, tool, details) => {
     console.log('[ChatKit] Tool called:', {
       name: tool.name,
-      args: details.toolCall.input,
+      args: (details.toolCall as any).input, // Type workaround for migration period
     });
   });
 
@@ -462,7 +462,7 @@ async function handleMessageCreate(
   runner.on('agent_tool_start', (context, agent, tool, details) => {
     console.log('[ChatKit] Tool called:', {
       name: tool.name,
-      args: details.toolCall.input,
+      args: (details.toolCall as any).input, // Type workaround for migration period
     });
   });
 
