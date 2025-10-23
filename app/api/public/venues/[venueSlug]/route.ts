@@ -14,16 +14,22 @@ export async function GET(
     const { venueSlug } = await params;
     const supabase = createServiceClient();
 
-    // In a real implementation, you'd query by a slug field
-    // For now, we'll treat venueSlug as the venue_id
-    // TODO: Add a slug field to venues table and query by that instead
-
-    const { data: venue, error: venueError } = await supabase
+    // Try to find venue by slug first, fallback to venue_id for backwards compatibility
+    let query = supabase
       .from('venues')
-      .select('venue_id, name, description, address')
-      .eq('venue_id', venueSlug)
-      .is('deleted_at', null)
-      .single();
+      .select('venue_id, name, description, address, slug')
+      .is('deleted_at', null);
+
+    // Check if it looks like a UUID (venue_id) or a slug
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(venueSlug);
+
+    if (isUUID) {
+      query = query.eq('venue_id', venueSlug);
+    } else {
+      query = query.eq('slug', venueSlug);
+    }
+
+    const { data: venue, error: venueError } = await query.single();
 
     if (venueError || !venue) {
       return NextResponse.json(

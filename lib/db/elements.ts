@@ -153,9 +153,23 @@ export async function createElement(
   // Validate input
   const validated = CreateElementSchema.parse(element);
 
+  // Convert Date objects to ISO strings for database storage
+  const dbData = {
+    ...validated,
+    availability_rules: validated.availability_rules ? {
+      ...validated.availability_rules,
+      blackout_dates: validated.availability_rules.blackout_dates?.map(d => d.toISOString().split('T')[0]),
+      seasonal_pricing: validated.availability_rules.seasonal_pricing?.map(sp => ({
+        ...sp,
+        start_date: sp.start_date.toISOString().split('T')[0],
+        end_date: sp.end_date.toISOString().split('T')[0],
+      })),
+    } : undefined,
+  };
+
   const { data, error } = await supabase
     .from('elements')
-    .insert(validated)
+    .insert(dbData)
     .select()
     .single();
 
@@ -189,9 +203,23 @@ export async function updateElement(
   // Validate input
   const validated = UpdateElementSchema.parse(updates);
 
+  // Convert Date objects to ISO strings for database storage
+  const dbData = {
+    ...validated,
+    availability_rules: validated.availability_rules ? {
+      ...validated.availability_rules,
+      blackout_dates: validated.availability_rules.blackout_dates?.map(d => d.toISOString().split('T')[0]),
+      seasonal_pricing: validated.availability_rules.seasonal_pricing?.map(sp => ({
+        ...sp,
+        start_date: sp.start_date.toISOString().split('T')[0],
+        end_date: sp.end_date.toISOString().split('T')[0],
+      })),
+    } : undefined,
+  };
+
   const { data, error } = await supabase
     .from('elements')
-    .update(validated)
+    .update(dbData)
     .eq('element_id', element_id)
     .is('deleted_at', null)
     .select()
@@ -268,7 +296,8 @@ export async function isElementAvailable(
   // Check blackout dates
   const blackoutDates = element.availability_rules?.blackout_dates || [];
   const eventDateStr = eventDate.toISOString().split('T')[0];
-  if (blackoutDates.includes(eventDateStr)) {
+  const blackoutDateStrs = blackoutDates.map(d => d.toISOString().split('T')[0]);
+  if (blackoutDateStrs.includes(eventDateStr)) {
     return false;
   }
 

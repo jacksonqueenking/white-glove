@@ -4,10 +4,10 @@
  * Venue General Chat Component
  *
  * Chat interface for venue-wide operations.
- * Uses ChatKit with the venue_general agent.
+ * Uses Vercel AI SDK with the venue_general agent.
  */
 
-import { ChatKitWrapper } from './ChatKitWrapper';
+import { ChatInterface } from './ChatInterface';
 
 interface VenueGeneralChatProps {
   venueId: string;
@@ -16,7 +16,7 @@ interface VenueGeneralChatProps {
 
 export function VenueGeneralChat({ venueId, className }: VenueGeneralChatProps) {
   return (
-    <ChatKitWrapper
+    <ChatInterface
       agentType="venue_general"
       venueId={venueId}
       className={className}

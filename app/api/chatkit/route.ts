@@ -18,7 +18,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { Agent, run } from '@openai/agents';
+import { Agent, Runner } from '@openai/agents';
 import { createChatKitStore } from '@/lib/chatkit/store';
 import {
   buildClientContext,
@@ -30,6 +30,7 @@ import {
   generateVenueGeneralSystemPrompt,
   generateVenueEventSystemPrompt,
 } from '@/lib/agents/prompts';
+import { getToolsForAgent, type ToolContext } from '@/lib/agents/tools';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -177,17 +178,43 @@ async function handleThreadCreate(
   const threadId = thread.thread_id;
   console.log('[ChatKit] Created thread:', threadId);
 
+  // Get tools for this agent type
+  const tools = getToolsForAgent(agentType);
+
   // Create agent
   const agent = new Agent({
     name: 'White Glove Assistant',
-    model: 'gpt-4o',
+    model: 'gpt-5',
     instructions,
+    tools,
   });
 
   console.log('[ChatKit] Running agent...');
+  console.log('[ChatKit] Available tools:', tools.length);
 
-  // Run the agent
-  const result = await run(agent, userMessage);
+  // Create tool context
+  const toolContext: ToolContext = { userId, userType };
+
+  // Create a runner with event logging
+  const runner = new Runner();
+
+  // Attach event listeners for tool execution logging
+  runner.on('agent_tool_start', (context, agent, tool, details) => {
+    console.log('[ChatKit] Tool called:', {
+      name: tool.name,
+      args: details.toolCall.input,
+    });
+  });
+
+  runner.on('agent_tool_end', (context, agent, tool, result, details) => {
+    console.log('[ChatKit] Tool completed:', {
+      name: tool.name,
+      resultLength: result ? result.length : 0,
+    });
+  });
+
+  // Run the agent with context
+  const result = await runner.run(agent, userMessage, { context: toolContext });
   const fullText = result.finalOutput || 'No response generated.';
 
   console.log('[ChatKit] Got response:', fullText);
@@ -411,15 +438,43 @@ async function handleMessageCreate(
     }
   }
 
+  // Get tools for this agent type
+  const tools = getToolsForAgent(agentType);
+
   // Create agent
   const agent = new Agent({
     name: 'White Glove Assistant',
-    model: 'gpt-4o',
+    model: 'gpt-5',
     instructions,
+    tools,
   });
 
-  // Run the agent
-  const result = await run(agent, userMessage);
+  console.log('[ChatKit] Running agent...');
+  console.log('[ChatKit] Available tools:', tools.length);
+
+  // Create tool context
+  const toolContext: ToolContext = { userId, userType };
+
+  // Create a runner with event logging
+  const runner = new Runner();
+
+  // Attach event listeners for tool execution logging
+  runner.on('agent_tool_start', (context, agent, tool, details) => {
+    console.log('[ChatKit] Tool called:', {
+      name: tool.name,
+      args: details.toolCall.input,
+    });
+  });
+
+  runner.on('agent_tool_end', (context, agent, tool, result, details) => {
+    console.log('[ChatKit] Tool completed:', {
+      name: tool.name,
+      resultLength: result ? result.length : 0,
+    });
+  });
+
+  // Run the agent with context
+  const result = await runner.run(agent, userMessage, { context: toolContext });
   const fullText = result.finalOutput || 'No response generated.';
 
   console.log('[ChatKit] Got response:', fullText);

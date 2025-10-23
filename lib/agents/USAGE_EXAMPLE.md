@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     // Step 4: Call OpenAI with tools
     let response = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+      model: 'gpt-5',
       messages: openaiMessages as any,
       tools: clientTools,
       tool_choice: 'auto',
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
       // Get next response with tool results
       response = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+        model: 'gpt-5',
         messages: openaiMessages,
         tools: clientTools,
         tool_choice: 'auto',
@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
     ];
 
     let response = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+      model: 'gpt-5',
       messages: openaiMessages as any,
       tools: venueEventTools,
       tool_choice: 'auto',
@@ -268,7 +268,7 @@ export async function POST(request: NextRequest) {
       }
 
       response = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+        model: 'gpt-5',
         messages: openaiMessages,
         tools: venueEventTools,
         tool_choice: 'auto',
@@ -312,7 +312,7 @@ export async function POST(request: NextRequest) {
   const systemPrompt = generateClientSystemPrompt(context);
 
   const stream = await openai.chat.completions.create({
-    model: 'gpt-4-turbo-preview',
+    model: 'gpt-5',
     messages: [
       { role: 'system', content: systemPrompt },
       ...messages,

@@ -235,15 +235,15 @@ export type UpdateSpace = z.infer<typeof UpdateSpaceSchema>;
 // ============================================================================
 
 export const SeasonalPricingSchema = z.object({
-  start_date: z.string().date(),
-  end_date: z.string().date(),
+  start_date: z.coerce.date(),
+  end_date: z.coerce.date(),
   price_multiplier: z.number().positive(),
 });
 export type SeasonalPricing = z.infer<typeof SeasonalPricingSchema>;
 
 export const AvailabilityRulesSchema = z.object({
   lead_time_days: z.number().int().nonnegative().default(0),
-  blackout_dates: z.array(z.string().date()).optional(),
+  blackout_dates: z.array(z.coerce.date()).optional(),
   seasonal_pricing: z.array(SeasonalPricingSchema).optional(),
 });
 export type AvailabilityRules = z.infer<typeof AvailabilityRulesSchema>;

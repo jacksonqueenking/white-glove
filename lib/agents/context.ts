@@ -11,8 +11,8 @@ import { getVenue } from '../db/venues';
 import { listEventElements } from '../db/event_elements';
 import { listTasks } from '../db/tasks';
 import { listGuests } from '../db/guests';
-import { getUserMessageThreads, listMessagesInThread } from '../db/messages';
 import { getVenueElements } from '../db/elements';
+import { listSpaces } from '../db/spaces';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/database.types.gen';
 import { ActionHistorySchema, type ActionHistory } from '../schemas';
@@ -39,9 +39,34 @@ export async function buildClientContext(
   const client = await getClient(supabase, clientId);
   if (!client) throw new Error('Client not found');
 
-  // Fetch venue
-  const venue = await getVenue(supabase, event.venue_id);
-  if (!venue) throw new Error('Venue not found');
+  // Fetch venue with detailed error logging
+  let venue = null;
+  try {
+    const { data: venueData, error: venueError } = await supabase
+      .from('venues')
+      .select('*')
+      .eq('venue_id', event.venue_id)
+      .is('deleted_at', null)
+      .single();
+
+    if (venueError) {
+      console.error(`[buildClientContext] Error fetching venue ${event.venue_id}:`, {
+        code: venueError.code,
+        message: venueError.message,
+        details: venueError.details,
+        hint: venueError.hint
+      });
+      throw new Error(`Venue not found: ${venueError.message}`);
+    } else if (venueData) {
+      venue = venueData as any;
+    } else {
+      console.error(`[buildClientContext] Venue ${event.venue_id} returned no data (possibly RLS issue)`);
+      throw new Error('Venue not found - no data returned (check RLS policies)');
+    }
+  } catch (error) {
+    console.error(`[buildClientContext] Exception fetching venue:`, error);
+    throw error;
+  }
 
   // Fetch event elements with element and vendor details
   const eventElements = await listEventElements(supabase, event.event_id);
@@ -96,6 +121,29 @@ export async function buildClientContext(
     description: item.description,
   }));
 
+  // Fetch spaces
+  const spaces = await listSpaces(supabase, event.venue_id);
+
+  // Fetch vendor info - same as venue event context
+  const { data: venueVendors } = await supabase
+    .from('venue_vendors')
+    .select('venue_vendor_id, vendor_id, approval_status, vendors(name), elements(element_id)')
+    .eq('venue_id', event.venue_id);
+
+  const vendors = venueVendors?.map((vv: any) => ({
+    vendor_id: vv.vendor_id,
+    name: vv.vendors?.name || 'Unknown',
+    approval_status: vv.approval_status,
+    element_count: vv.elements?.length || 0,
+  })) || [];
+
+  // Fetch messages for this event
+  const { data: messages } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: true });
+
   return {
     client: {
       client_id: client.client_id,
@@ -116,6 +164,9 @@ export async function buildClientContext(
     guests,
     actionHistory: parsedActionHistory,
     availableOfferings: offerings,
+    vendors,
+    messages: messages || [],
+    spaces,
     currentDateTime: new Date().toISOString(),
   };
 }
@@ -185,6 +236,9 @@ export async function buildVenueGeneralContext(
     element_count: vv.elements?.length || 0,
   })) || [];
 
+  // Fetch spaces
+  const spaces = await listSpaces(supabase, venueId);
+
   return {
     venue: {
       venue_id: venue.venue_id,
@@ -198,6 +252,7 @@ export async function buildVenueGeneralContext(
     actionHistory: parsedActionHistory,
     allOfferings: offerings,
     vendors,
+    spaces,
     currentDateTime: new Date().toISOString(),
   };
 }
@@ -224,8 +279,36 @@ export async function buildVenueEventContext(
   const venue = await getVenue(supabase, venueId);
   if (!venue) throw new Error('Venue not found');
 
-  // Fetch client
-  const client = event.client_id ? await getClient(supabase, event.client_id) : null;
+  // Fetch client with detailed error logging
+  let client = null;
+  if (event.client_id) {
+    try {
+      // Try to fetch the client directly with error details
+      const { data: clientData, error: clientError } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('client_id', event.client_id)
+        .is('deleted_at', null)
+        .single();
+
+      if (clientError) {
+        console.error(`[buildVenueEventContext] Error fetching client ${event.client_id}:`, {
+          code: clientError.code,
+          message: clientError.message,
+          details: clientError.details,
+          hint: clientError.hint
+        });
+      } else if (clientData) {
+        client = clientData as any;
+      } else {
+        console.warn(`[buildVenueEventContext] Client ${event.client_id} returned no data (possibly RLS issue)`);
+      }
+    } catch (error) {
+      console.error(`[buildVenueEventContext] Exception fetching client:`, error);
+    }
+  } else {
+    console.warn(`[buildVenueEventContext] Event ${eventId} has no client_id assigned`);
+  }
 
   // Fetch event elements with details
   const eventElements = await listEventElements(supabase, eventId);
@@ -285,6 +368,22 @@ export async function buildVenueEventContext(
     description: item.description,
   }));
 
+  // Fetch spaces
+  const spaces = await listSpaces(supabase, venueId);
+
+  // Fetch vendor info - same as client context
+  const { data: venueVendors } = await supabase
+    .from('venue_vendors')
+    .select('venue_vendor_id, vendor_id, approval_status, vendors(name), elements(element_id)')
+    .eq('venue_id', venueId);
+
+  const vendors = venueVendors?.map((vv: any) => ({
+    vendor_id: vv.vendor_id,
+    name: vv.vendors?.name || 'Unknown',
+    approval_status: vv.approval_status,
+    element_count: vv.elements?.length || 0,
+  })) || [];
+
   return {
     venue: {
       venue_id: venue.venue_id,
@@ -304,6 +403,8 @@ export async function buildVenueEventContext(
     messages: messages || [],
     actionHistory: parsedActionHistory,
     availableOfferings: offerings,
+    vendors,
+    spaces,
     currentDateTime: new Date().toISOString(),
   };
 }

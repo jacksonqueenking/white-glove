@@ -17,7 +17,7 @@ export {
   venueEventTools,
   vendorTools,
   getToolsForAgent,
-  type OpenAITool,
+  type ToolContext,
 } from './tools';
 
 // Context building
@@ -27,15 +27,6 @@ export {
   buildVenueEventContext,
   buildVendorContext,
 } from './context';
-
-// Tool execution
-export {
-  executeToolCall,
-  clientToolHandlers,
-  venueGeneralToolHandlers,
-  venueEventToolHandlers,
-  vendorToolHandlers,
-} from './toolHandlers';
 
 // Legacy assistant classes (placeholders)
 export { ClientAssistant } from './clientAssistant';

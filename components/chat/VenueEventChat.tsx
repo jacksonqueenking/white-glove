@@ -4,10 +4,10 @@
  * Venue Event Chat Component
  *
  * Chat interface for venue staff to manage a specific event.
- * Uses ChatKit with the venue_event agent.
+ * Uses Vercel AI SDK with the venue_event agent.
  */
 
-import { ChatKitWrapper } from './ChatKitWrapper';
+import { ChatInterface } from './ChatInterface';
 
 interface VenueEventChatProps {
   venueId: string;
@@ -17,7 +17,7 @@ interface VenueEventChatProps {
 
 export function VenueEventChat({ venueId, eventId, className }: VenueEventChatProps) {
   return (
-    <ChatKitWrapper
+    <ChatInterface
       agentType="venue_event"
       eventId={eventId}
       venueId={venueId}

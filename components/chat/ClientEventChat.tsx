@@ -4,10 +4,10 @@
  * Client Event Chat Component
  *
  * Chat interface for clients to plan their events.
- * Uses ChatKit with the client agent.
+ * Uses Vercel AI SDK with the client agent.
  */
 
-import { ChatKitWrapper } from './ChatKitWrapper';
+import { ChatInterface } from './ChatInterface';
 
 interface ClientEventChatProps {
   clientId: string;
@@ -17,7 +17,7 @@ interface ClientEventChatProps {
 
 export function ClientEventChat({ clientId, eventId, className }: ClientEventChatProps) {
   return (
-    <ChatKitWrapper
+    <ChatInterface
       agentType="client"
       eventId={eventId}
       className={className}
