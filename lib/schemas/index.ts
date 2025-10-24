@@ -64,9 +64,9 @@ export const ClientSchema = z.object({
   credit_card_stripe_id: z.string().nullable().optional(),
   billing_address: AddressSchema.nullable().optional(),
   preferences: ClientPreferencesSchema.default({ people: [], food: '', notes: '' }),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
-  deleted_at: z.string().datetime().nullable().optional(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  deleted_at: z.string().nullable().optional(),
 });
 export type Client = z.infer<typeof ClientSchema>;
 
@@ -90,9 +90,9 @@ export const VenueSchema = z.object({
   name: z.string().min(3, 'Venue name must be at least 3 characters'),
   description: z.string().nullable().optional(),
   address: AddressSchema,
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
-  deleted_at: z.string().datetime().nullable().optional(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  deleted_at: z.string().nullable().optional(),
 });
 export type Venue = z.infer<typeof VenueSchema>;
 
@@ -119,9 +119,9 @@ export const VendorSchema = z.object({
   address: AddressSchema,
   description: z.string().nullable().optional(),
   contact_persons: z.array(ContactPersonSchema).default([]),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
-  deleted_at: z.string().datetime().nullable().optional(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  deleted_at: z.string().nullable().optional(),
 });
 export type Vendor = z.infer<typeof VendorSchema>;
 
@@ -161,7 +161,7 @@ export const TimelineItemSchema = z.object({
 export type TimelineItem = z.infer<typeof TimelineItemSchema>;
 
 export const EventScheduleSchema = z.object({
-  date: z.string().datetime(),
+  date: z.string(),
   timeline: z.array(TimelineItemSchema).default([]),
 });
 export type EventSchedule = z.infer<typeof EventScheduleSchema>;
@@ -170,15 +170,15 @@ export const EventSchema = z.object({
   event_id: z.string().uuid(),
   name: z.string().min(3, 'Event name must be at least 3 characters'),
   description: z.string().nullable().optional(),
-  date: z.string().datetime(),
+  date: z.string(),
   client_id: z.string().uuid().nullable().optional(),
   venue_id: z.string().uuid(),
   calendar: EventScheduleSchema.nullable().optional(),
   status: EventStatusSchema.default('inquiry'),
-  rsvp_deadline: z.string().datetime().nullable().optional(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
-  deleted_at: z.string().datetime().nullable().optional(),
+  rsvp_deadline: z.string().nullable().optional(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  deleted_at: z.string().nullable().optional(),
 });
 export type Event = z.infer<typeof EventSchema>;
 
@@ -213,9 +213,9 @@ export const SpaceSchema = z.object({
   photos: z.array(PhotoSchema).default([]),
   floorplan_url: z.string().url().nullable().optional(),
   capacity: z.number().int().positive().nullable().optional(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
-  deleted_at: z.string().datetime().nullable().optional(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  deleted_at: z.string().nullable().optional(),
 });
 export type Space = z.infer<typeof SpaceSchema>;
 
@@ -235,15 +235,15 @@ export type UpdateSpace = z.infer<typeof UpdateSpaceSchema>;
 // ============================================================================
 
 export const SeasonalPricingSchema = z.object({
-  start_date: z.string().datetime(),
-  end_date: z.string().datetime(),
+  start_date: z.string(),
+  end_date: z.string(),
   price_multiplier: z.number().positive(),
 });
 export type SeasonalPricing = z.infer<typeof SeasonalPricingSchema>;
 
 export const AvailabilityRulesSchema = z.object({
   lead_time_days: z.number().int().nonnegative().default(0),
-  blackout_dates: z.array(z.string().datetime()).optional(),
+  blackout_dates: z.array(z.string()).optional(),
   seasonal_pricing: z.array(SeasonalPricingSchema).optional(),
 });
 export type AvailabilityRules = z.infer<typeof AvailabilityRulesSchema>;
@@ -259,9 +259,9 @@ export const ElementSchema = z.object({
   files: z.array(z.any()).default([]),
   contract: z.any().nullable().optional(),
   availability_rules: AvailabilityRulesSchema.default({ lead_time_days: 0 }),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
-  deleted_at: z.string().datetime().nullable().optional(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  deleted_at: z.string().nullable().optional(),
 });
 export type Element = z.infer<typeof ElementSchema>;
 
@@ -297,8 +297,8 @@ export const EventElementSchema = z.object({
   amount: z.number().nonnegative(),
   contract_completed: z.boolean().default(false),
   notes: z.string().nullable().optional(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  created_at: z.string(),
+  updated_at: z.string(),
 });
 export type EventElement = z.infer<typeof EventElementSchema>;
 
@@ -333,11 +333,11 @@ export const TaskSchema = z.object({
   form_schema: z.any().nullable().optional(),
   form_response: z.any().nullable().optional(),
   priority: PrioritySchema.default('medium'),
-  due_date: z.string().datetime().nullable().optional(),
+  due_date: z.string().nullable().optional(),
   created_by: z.string(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
-  completed_at: z.string().datetime().nullable().optional(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  completed_at: z.string().nullable().optional(),
 });
 export type Task = z.infer<typeof TaskSchema>;
 
@@ -370,8 +370,8 @@ export const GuestSchema = z.object({
   rsvp_status: RSVPStatusSchema.default('undecided'),
   dietary_restrictions: z.string().nullable().optional(),
   plus_one: z.boolean().default(false),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  created_at: z.string(),
+  updated_at: z.string(),
 });
 export type Guest = z.infer<typeof GuestSchema>;
 
@@ -410,7 +410,7 @@ export const MessageSchema = z.object({
   action_required: z.boolean().default(false),
   suggested_response: z.string().nullable().optional(),
   read: z.boolean().default(false),
-  created_at: z.string().datetime(),
+  created_at: z.string(),
 });
 export type Message = z.infer<typeof MessageSchema>;
 
@@ -433,7 +433,7 @@ export const NotificationSchema = z.object({
   content: z.string().min(1, 'Notification content is required'),
   read: z.boolean().default(false),
   action_url: z.string().nullable().optional(),
-  created_at: z.string().datetime(),
+  created_at: z.string(),
 });
 export type Notification = z.infer<typeof NotificationSchema>;
 
@@ -460,10 +460,10 @@ export const InvitationSchema = z.object({
   invited_by: z.string().uuid(),
   invitation_type: InvitationTypeSchema,
   status: InvitationStatusSchema.default('pending'),
-  expires_at: z.string().datetime(),
-  used_at: z.string().datetime().nullable().optional(),
+  expires_at: z.string(),
+  used_at: z.string().nullable().optional(),
   metadata: z.any().nullable().optional(),
-  created_at: z.string().datetime(),
+  created_at: z.string(),
 });
 export type Invitation = z.infer<typeof InvitationSchema>;
 
@@ -518,7 +518,7 @@ export const ActionHistorySchema = z.object({
   action_type: z.string().min(1, 'Action type is required'),
   description: z.string().min(1, 'Description is required'),
   metadata: z.any().nullable().optional(),
-  created_at: z.string().datetime(),
+  created_at: z.string(),
 });
 export type ActionHistory = z.infer<typeof ActionHistorySchema>;
 
