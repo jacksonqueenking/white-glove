@@ -153,19 +153,8 @@ export async function createElement(
   // Validate input
   const validated = CreateElementSchema.parse(element);
 
-  // Convert Date objects to ISO strings for database storage
-  const dbData = {
-    ...validated,
-    availability_rules: validated.availability_rules ? {
-      ...validated.availability_rules,
-      blackout_dates: validated.availability_rules.blackout_dates?.map(d => d.toISOString().split('T')[0]),
-      seasonal_pricing: validated.availability_rules.seasonal_pricing?.map(sp => ({
-        ...sp,
-        start_date: sp.start_date.toISOString().split('T')[0],
-        end_date: sp.end_date.toISOString().split('T')[0],
-      })),
-    } : undefined,
-  };
+  // Data is already validated and in correct format
+  const dbData = validated;
 
   const { data, error } = await supabase
     .from('elements')
@@ -203,19 +192,8 @@ export async function updateElement(
   // Validate input
   const validated = UpdateElementSchema.parse(updates);
 
-  // Convert Date objects to ISO strings for database storage
-  const dbData = {
-    ...validated,
-    availability_rules: validated.availability_rules ? {
-      ...validated.availability_rules,
-      blackout_dates: validated.availability_rules.blackout_dates?.map(d => d.toISOString().split('T')[0]),
-      seasonal_pricing: validated.availability_rules.seasonal_pricing?.map(sp => ({
-        ...sp,
-        start_date: sp.start_date.toISOString().split('T')[0],
-        end_date: sp.end_date.toISOString().split('T')[0],
-      })),
-    } : undefined,
-  };
+  // Data is already validated and in correct format
+  const dbData = validated;
 
   const { data, error } = await supabase
     .from('elements')
@@ -295,9 +273,8 @@ export async function isElementAvailable(
 
   // Check blackout dates
   const blackoutDates = element.availability_rules?.blackout_dates || [];
-  const eventDateStr = eventDate.toISOString().split('T')[0];
-  const blackoutDateStrs = blackoutDates.map(d => d.toISOString().split('T')[0]);
-  if (blackoutDateStrs.includes(eventDateStr)) {
+  const eventDateStr = eventDate.toISOString();
+  if (blackoutDates.includes(eventDateStr)) {
     return false;
   }
 
