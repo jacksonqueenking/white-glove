@@ -16,7 +16,7 @@ import {
   generateVenueGeneralSystemPrompt,
   generateVenueEventSystemPrompt,
 } from '@/lib/agents/prompts';
-import { getToolsForAgent, type ToolContext } from '@/lib/agents/tools.ai';
+import { getToolsForAgent, type ToolContext } from '@/lib/agents/tools';
 import {
   createAIChat,
   getAIChat,

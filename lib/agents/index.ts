@@ -12,10 +12,9 @@ export {
 
 // Tool definitions
 export {
-  clientTools,
-  venueGeneralTools,
-  venueEventTools,
-  vendorTools,
+  createClientTools,
+  createVenueGeneralTools,
+  createVenueEventTools,
   getToolsForAgent,
   type ToolContext,
 } from './tools';
