@@ -6,8 +6,9 @@ import type { UserType, Address } from './validation';
 import type { AuthResponse } from './types';
 
 // Use Vercel's URL for deployments, fallback to custom URL or localhost
-const BASE_URL = process.env.NEXT_PUBLIC_VERCEL_URL
-  ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+// VERCEL_URL is automatically provided by Vercel (not NEXT_PUBLIC_VERCEL_URL)
+const BASE_URL = process.env.VERCEL_URL
+  ? `https://${process.env.VERCEL_URL}`
   : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 /**
