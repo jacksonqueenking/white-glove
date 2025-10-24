@@ -26,7 +26,7 @@ export async function buildClientContext(
   eventId: string
 ) {
 
-  // Fetch event
+  // Fetch event by ID
   const event = await getEvent(supabase, eventId);
   if (!event) throw new Error('Event not found');
 
