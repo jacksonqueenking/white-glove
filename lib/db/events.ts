@@ -131,20 +131,9 @@ export async function createEvent(
   // Validate input
   const validated = CreateEventSchema.parse(event);
 
-  // Convert Date objects to ISO strings for database storage
-  const dbData = {
-    ...validated,
-    date: validated.date.toISOString(),
-    rsvp_deadline: validated.rsvp_deadline?.toISOString(),
-    calendar: validated.calendar ? {
-      date: validated.calendar.date.toISOString(),
-      timeline: validated.calendar.timeline,
-    } : null,
-  };
-
   const { data, error } = await supabase
     .from('events')
-    .insert(dbData)
+    .insert(validated as any)
     .select()
     .single();
 
@@ -178,24 +167,9 @@ export async function updateEvent(
   // Validate input
   const validated = UpdateEventSchema.parse(updates);
 
-  // Convert Date objects to ISO strings for database storage
-  const dbData: any = { ...validated };
-  if (validated.date) {
-    dbData.date = validated.date.toISOString();
-  }
-  if (validated.rsvp_deadline !== undefined) {
-    dbData.rsvp_deadline = validated.rsvp_deadline?.toISOString();
-  }
-  if (validated.calendar) {
-    dbData.calendar = {
-      date: validated.calendar.date.toISOString(),
-      timeline: validated.calendar.timeline,
-    };
-  }
-
   const { data, error } = await supabase
     .from('events')
-    .update(dbData)
+    .update(validated)
     .eq('event_id', event_id)
     .is('deleted_at', null)
     .select()

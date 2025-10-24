@@ -55,6 +55,175 @@ export type Database = {
           },
         ]
       }
+      ai_chats: {
+        Row: {
+          agent_type: string
+          created_at: string
+          event_id: string | null
+          id: string
+          title: string | null
+          updated_at: string
+          user_id: string
+          user_type: string
+          venue_id: string | null
+        }
+        Insert: {
+          agent_type: string
+          created_at?: string
+          event_id?: string | null
+          id: string
+          title?: string | null
+          updated_at?: string
+          user_id: string
+          user_type: string
+          venue_id?: string | null
+        }
+        Update: {
+          agent_type?: string
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+          user_type?: string
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_chats_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "ai_chats_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["venue_id"]
+          },
+        ]
+      }
+      ai_message_parts: {
+        Row: {
+          created_at: string
+          data_content: Json | null
+          file_filename: string | null
+          file_mediatype: string | null
+          file_url: string | null
+          id: string
+          message_id: string
+          order: number
+          providermetadata: Json | null
+          reasoning_text: string | null
+          source_document_filename: string | null
+          source_document_mediatype: string | null
+          source_document_sourceid: string | null
+          source_document_title: string | null
+          source_url_sourceid: string | null
+          source_url_title: string | null
+          source_url_url: string | null
+          text_text: string | null
+          tool_errortext: string | null
+          tool_input: Json | null
+          tool_output: Json | null
+          tool_state: string | null
+          tool_toolcallid: string | null
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          data_content?: Json | null
+          file_filename?: string | null
+          file_mediatype?: string | null
+          file_url?: string | null
+          id: string
+          message_id: string
+          order?: number
+          providermetadata?: Json | null
+          reasoning_text?: string | null
+          source_document_filename?: string | null
+          source_document_mediatype?: string | null
+          source_document_sourceid?: string | null
+          source_document_title?: string | null
+          source_url_sourceid?: string | null
+          source_url_title?: string | null
+          source_url_url?: string | null
+          text_text?: string | null
+          tool_errortext?: string | null
+          tool_input?: Json | null
+          tool_output?: Json | null
+          tool_state?: string | null
+          tool_toolcallid?: string | null
+          type: string
+        }
+        Update: {
+          created_at?: string
+          data_content?: Json | null
+          file_filename?: string | null
+          file_mediatype?: string | null
+          file_url?: string | null
+          id?: string
+          message_id?: string
+          order?: number
+          providermetadata?: Json | null
+          reasoning_text?: string | null
+          source_document_filename?: string | null
+          source_document_mediatype?: string | null
+          source_document_sourceid?: string | null
+          source_document_title?: string | null
+          source_url_sourceid?: string | null
+          source_url_title?: string | null
+          source_url_url?: string | null
+          text_text?: string | null
+          tool_errortext?: string | null
+          tool_input?: Json | null
+          tool_output?: Json | null
+          tool_state?: string | null
+          tool_toolcallid?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_message_parts_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "ai_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_messages: {
+        Row: {
+          chat_id: string
+          created_at: string
+          id: string
+          role: string
+        }
+        Insert: {
+          chat_id: string
+          created_at?: string
+          id: string
+          role: string
+        }
+        Update: {
+          chat_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "ai_chats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chatkit_attachments: {
         Row: {
           attachment_id: string
@@ -1045,6 +1214,7 @@ export type Database = {
           deleted_at: string | null
           description: string | null
           name: string
+          slug: string
           updated_at: string
           venue_id: string
         }
@@ -1054,6 +1224,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           name: string
+          slug: string
           updated_at?: string
           venue_id: string
         }
@@ -1063,6 +1234,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           name?: string
+          slug?: string
           updated_at?: string
           venue_id?: string
         }
@@ -1081,38 +1253,18 @@ export type Database = {
         }
         Returns: Json
       }
-      generate_chatkit_attachment_id: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      generate_chatkit_item_id: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      generate_chatkit_thread_id: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      generate_chatkit_attachment_id: { Args: never; Returns: string }
+      generate_chatkit_item_id: { Args: never; Returns: string }
+      generate_chatkit_thread_id: { Args: never; Returns: string }
+      generate_slug: { Args: { name: string }; Returns: string }
       get_next_sequence_number: {
         Args: { p_thread_id: string }
         Returns: number
       }
-      get_user_type: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      is_client: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      is_vendor: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      is_venue: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
+      get_user_type: { Args: never; Returns: string }
+      is_client: { Args: never; Returns: boolean }
+      is_vendor: { Args: never; Returns: boolean }
+      is_venue: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

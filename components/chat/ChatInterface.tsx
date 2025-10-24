@@ -185,12 +185,31 @@ export function ChatInterface({
     },
   });
 
-  // Set initial messages if there are none
+  // Load messages from database on mount
   useEffect(() => {
-    if (messages.length === 0) {
+    const loadMessages = async () => {
+      const id = chatId || `chat-${agentType}-${eventId || venueId}`;
+
+      try {
+        const response = await fetch(`/api/chat/load?id=${id}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.messages && data.messages.length > 0) {
+            console.log('[ChatInterface] Loaded messages from database:', data.messages.length);
+            setMessages(data.messages);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('[ChatInterface] Error loading messages:', error);
+      }
+
+      // If no messages loaded, set initial messages
       setMessages(getInitialMessages(agentType));
-    }
-  }, [messages.length, agentType, setMessages]);
+    };
+
+    loadMessages();
+  }, [chatId, agentType, eventId, venueId, setMessages]);
 
   console.log('[ChatInterface] Messages:', messages);
   console.log('[ChatInterface] Status:', status);

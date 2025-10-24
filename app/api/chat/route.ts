@@ -17,6 +17,11 @@ import {
   generateVenueEventSystemPrompt,
 } from '@/lib/agents/prompts';
 import { getToolsForAgent, type ToolContext } from '@/lib/agents/tools.ai';
+import {
+  createAIChat,
+  getAIChat,
+  upsertAIMessage,
+} from '@/lib/db/ai-chat';
 
 export const maxDuration = 30;
 
@@ -50,12 +55,14 @@ export async function POST(req: Request) {
       eventId,
       venueId,
       systemPrompt: prebuiltSystemPrompt,
+      id: chatId,
     }: {
       messages: UIMessage[];
       agentType: 'client' | 'venue_general' | 'venue_event';
       eventId?: string;
       venueId?: string;
       systemPrompt?: string;
+      id?: string;
     } = await req.json();
 
     console.log('[Chat API] Request:', {
@@ -66,7 +73,24 @@ export async function POST(req: Request) {
       venueId,
       messageCount: messages.length,
       hasPrebuiltPrompt: !!prebuiltSystemPrompt,
+      chatId,
     });
+
+    // Ensure chat exists in database
+    let chat = chatId ? await getAIChat(supabase, chatId) : null;
+    if (!chat) {
+      // Create new chat
+      const newChatId = chatId || `chat-${agentType}-${eventId || venueId || user.id}`;
+      chat = await createAIChat(supabase, {
+        id: newChatId,
+        user_id: user.id,
+        user_type: userType,
+        agent_type: agentType,
+        event_id: eventId,
+        venue_id: venueId,
+      });
+      console.log('[Chat API] Created new chat:', chat.id);
+    }
 
     let systemPrompt: string;
 
@@ -124,6 +148,69 @@ export async function POST(req: Request) {
       system: systemPrompt,
       messages: convertToModelMessages(messages),
       tools,
+      onFinish: async ({ text, toolCalls, toolResults }) => {
+        try {
+          console.log('[Chat API] onFinish called, saving messages to database');
+
+          // Build parts array for the assistant's response
+          const parts: UIMessage['parts'] = [];
+
+          // Add text content if present
+          if (text) {
+            parts.push({ type: 'text', text });
+          }
+
+          // Add tool calls if present
+          if (toolCalls && toolCalls.length > 0) {
+            for (const toolCall of toolCalls) {
+              parts.push({
+                type: 'dynamic-tool',
+                toolCallId: toolCall.toolCallId,
+                toolName: toolCall.toolName,
+                state: 'input-available',
+                input: toolCall.input,
+              });
+            }
+          }
+
+          // Add tool results if present
+          if (toolResults && toolResults.length > 0) {
+            for (const toolResult of toolResults) {
+              parts.push({
+                type: 'dynamic-tool',
+                toolCallId: toolResult.toolCallId,
+                toolName: toolResult.toolName,
+                state: 'output-available',
+                input: toolResult.input,
+                output: toolResult.output,
+              });
+            }
+          }
+
+          // Only save if we have content
+          if (parts.length > 0) {
+            const assistantMessage: UIMessage = {
+              id: `msg-${Date.now()}`,
+              role: 'assistant',
+              parts,
+            };
+
+            // Save the assistant's message
+            await upsertAIMessage(supabase, chat!.id, assistantMessage);
+          }
+
+          // Also save the user's message if it's new (last message in the array)
+          const lastUserMessage = messages[messages.length - 1];
+          if (lastUserMessage && lastUserMessage.role === 'user') {
+            await upsertAIMessage(supabase, chat!.id, lastUserMessage);
+          }
+
+          console.log('[Chat API] Messages saved successfully');
+        } catch (error) {
+          console.error('[Chat API] Error saving messages:', error);
+          // Don't throw - we don't want to break the response stream
+        }
+      },
     });
 
     console.log('[Chat API] Returning stream response with', Object.keys(tools).length, 'tools');

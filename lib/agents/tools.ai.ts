@@ -64,7 +64,7 @@ export function createClientTools(
         if (!element) throw new Error('Element not found');
 
         // Check availability
-        const available = await isElementAvailable(supabase, element_id, event.date.toISOString());
+        const available = await isElementAvailable(supabase, element_id, event.date);
         if (!available) {
           throw new Error('Element is not available for this date');
         }
@@ -292,7 +292,7 @@ export function createVenueGeneralTools(
       execute: async ({ name, date, client_id, venue_id, description }) => {
         const event = await createEvent(supabase, {
           name,
-          date: new Date(date),
+          date,
           client_id: client_id ?? undefined,
           venue_id,
           description: description ?? undefined,
@@ -482,9 +482,9 @@ export function createVenueEventTools(
       execute: async ({ event_id, name, date, description, rsvp_deadline }) => {
         const updates: any = {};
         if (name !== null) updates.name = name;
-        if (date !== null) updates.date = new Date(date);
+        if (date !== null) updates.date = date;
         if (description !== null) updates.description = description;
-        if (rsvp_deadline !== null) updates.rsvp_deadline = new Date(rsvp_deadline);
+        if (rsvp_deadline !== null) updates.rsvp_deadline = rsvp_deadline;
 
         const event = await updateEvent(supabase, event_id, updates);
         return event;
@@ -596,7 +596,7 @@ export function createVenueEventTools(
           name,
           description,
           priority: priority ?? 'medium',
-          due_date: due_date ? new Date(due_date) : undefined,
+          due_date: due_date ?? undefined,
           form_schema: formSchema,
           created_by: context.userId,
         });
@@ -616,7 +616,7 @@ export function createVenueEventTools(
         const updates: any = {};
         if (status !== null) updates.status = status;
         if (priority !== null) updates.priority = priority;
-        if (due_date !== null) updates.due_date = new Date(due_date);
+        if (due_date !== null) updates.due_date = due_date;
 
         const task = await updateTask(supabase, task_id, updates);
         return task;
