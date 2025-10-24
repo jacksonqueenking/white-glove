@@ -340,6 +340,17 @@ export async function createClientRecord(
 }
 
 /**
+ * Generate a URL-friendly slug from a string
+ */
+function generateSlug(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+}
+
+/**
  * Create venue record after signup
  */
 export async function createVenueRecord(
@@ -350,11 +361,17 @@ export async function createVenueRecord(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = createServiceClient();
 
+  // Generate slug from name with a unique suffix to ensure uniqueness
+  const baseSlug = generateSlug(name);
+  const uniqueSuffix = userId.substring(0, 8);
+  const slug = `${baseSlug}-${uniqueSuffix}`;
+
   const venueData: Database['public']['Tables']['venues']['Insert'] = {
     venue_id: userId,
     name,
     description,
     address: address as any,
+    slug,
   };
 
   const { error } = await supabase.from('venues').insert(venueData);
