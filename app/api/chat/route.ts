@@ -22,6 +22,7 @@ import {
   getAIChat,
   upsertAIMessage,
 } from '@/lib/db/ai-chat';
+import { logToolResultsForLLM } from '@/lib/agents/toolLogger';
 
 export const maxDuration = 30;
 
@@ -150,7 +151,24 @@ export async function POST(req: Request) {
       tools,
       onFinish: async ({ text, toolCalls, toolResults }) => {
         try {
-          console.log('[Chat API] onFinish called, saving messages to database');
+          console.log('[Chat API] ========== onFinish CALLBACK ==========');
+          console.log('[Chat API] Text response length:', text?.length || 0);
+          console.log('[Chat API] Tool calls count:', toolCalls?.length || 0);
+          console.log('[Chat API] Tool results count:', toolResults?.length || 0);
+
+          // Log tool results being returned to LLM
+          if (toolResults && toolResults.length > 0) {
+            console.log('[Chat API] ========== TOOL RESULTS TO LLM ==========');
+            for (const toolResult of toolResults) {
+              logToolResultsForLLM(
+                toolResult.toolName,
+                toolResult.input,
+                toolResult.output,
+                undefined
+              );
+            }
+            console.log('[Chat API] ========== END TOOL RESULTS TO LLM ==========');
+          }
 
           // Build parts array for the assistant's response
           const parts: UIMessage['parts'] = [];
@@ -158,10 +176,12 @@ export async function POST(req: Request) {
           // Add text content if present
           if (text) {
             parts.push({ type: 'text', text });
+            console.log('[Chat API] Added text part to message');
           }
 
           // Add tool calls if present
           if (toolCalls && toolCalls.length > 0) {
+            console.log('[Chat API] Adding', toolCalls.length, 'tool calls to message');
             for (const toolCall of toolCalls) {
               parts.push({
                 type: 'dynamic-tool',
@@ -175,6 +195,7 @@ export async function POST(req: Request) {
 
           // Add tool results if present
           if (toolResults && toolResults.length > 0) {
+            console.log('[Chat API] Adding', toolResults.length, 'tool results to message');
             for (const toolResult of toolResults) {
               parts.push({
                 type: 'dynamic-tool',
