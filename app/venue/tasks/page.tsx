@@ -42,7 +42,6 @@ export default function VenueTasksPage() {
   const [loading, setLoading] = useState(true);
   const [selectedInquiry, setSelectedInquiry] = useState<InquiryData | null>(null);
   const [currentInquiryTaskId, setCurrentInquiryTaskId] = useState<string | null>(null);
-  const supabase = createClient();
 
   useEffect(() => {
     loadTasks();
@@ -50,6 +49,8 @@ export default function VenueTasksPage() {
 
   async function loadTasks() {
     try {
+      const supabase = createClient();
+
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -112,6 +113,8 @@ export default function VenueTasksPage() {
 
   async function loadInquiryDetails(inquiryId: string, taskId: string) {
     try {
+      const supabase = createClient();
+
       const { data: inquiry, error } = await supabase
         .from('client_inquiries')
         .select('*')
@@ -159,6 +162,8 @@ export default function VenueTasksPage() {
     if (!selectedInquiry || !currentInquiryTaskId) return;
 
     try {
+      const supabase = createClient();
+
       const response = await fetch(`/api/inquiries/${selectedInquiry.inquiry_id}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -204,6 +209,8 @@ export default function VenueTasksPage() {
     if (!selectedInquiry || !currentInquiryTaskId) return;
 
     try {
+      const supabase = createClient();
+
       const response = await fetch(`/api/inquiries/${selectedInquiry.inquiry_id}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -246,6 +253,8 @@ export default function VenueTasksPage() {
 
   async function handleMarkComplete(taskId: string) {
     try {
+      const supabase = createClient();
+
       await supabase
         .from('tasks')
         .update({
