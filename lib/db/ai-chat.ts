@@ -69,8 +69,8 @@ interface DBMessagePart {
   tool_output?: any;
   // Custom data parts
   data_content?: any;
-  // Provider metadata
-  providerMetadata?: any;
+  // Provider metadata (lowercase to match database schema)
+  providermetadata?: any;
 }
 
 /**
@@ -184,7 +184,7 @@ function mapPartToDB(part: UIMessage['parts'][number], order: number): Omit<DBMe
   const basePart = {
     type: part.type,
     order,
-    providerMetadata: (part as any).providerMetadata,
+    providermetadata: (part as any).providerMetadata,
   };
 
   switch (part.type) {
@@ -223,6 +223,20 @@ function mapPartToDB(part: UIMessage['parts'][number], order: number): Omit<DBMe
         tool_state: 'result',
         tool_output: (part as any).result,
       };
+
+    case 'dynamic-tool': {
+      // Handle dynamic-tool parts from AI SDK
+      const toolPart = part as any;
+      return {
+        ...basePart,
+        type: toolPart.state === 'input-available' ? 'tool-call' : 'tool-result',
+        tool_toolCallId: toolPart.toolCallId,
+        tool_state: toolPart.state,
+        tool_errorText: toolPart.errorText,
+        tool_input: toolPart.input ? { ...toolPart.input, toolName: toolPart.toolName } : { toolName: toolPart.toolName },
+        tool_output: toolPart.output ? { ...toolPart.output, toolName: toolPart.toolName } : undefined,
+      };
+    }
 
     default:
       // For custom data parts or unknown types
@@ -263,18 +277,20 @@ function mapPartToUI(dbPart: DBMessagePart): UIMessage['parts'][number] {
         type: 'dynamic-tool',
         toolCallId: dbPart.tool_toolCallId!,
         toolName: (dbPart.tool_input as any)?.toolName || 'unknown',
-        state: 'input-available' as const,
+        state: (dbPart.tool_state as any) || 'input-available' as const,
         input: dbPart.tool_input!,
+        errorText: dbPart.tool_errorText,
       };
 
     case 'tool-result':
       return {
         type: 'dynamic-tool',
         toolCallId: dbPart.tool_toolCallId!,
-        toolName: (dbPart.tool_output as any)?.toolName || 'unknown',
-        state: 'output-available' as const,
-        input: {},
-        output: dbPart.tool_output!,
+        toolName: (dbPart.tool_output as any)?.toolName || (dbPart.tool_input as any)?.toolName || 'unknown',
+        state: (dbPart.tool_state as any) || 'output-available' as const,
+        input: dbPart.tool_input || {},
+        output: dbPart.tool_output,
+        errorText: dbPart.tool_errorText,
       };
 
     default:

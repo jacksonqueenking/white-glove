@@ -51,10 +51,17 @@ import {
   Suggestion,
   Suggestions,
 } from '@/components/ai-elements/suggestion';
+import {
+  Tool,
+  ToolHeader,
+  ToolContent,
+  ToolInput,
+  ToolOutput,
+} from '@/components/ai-elements/tool';
 import { GlobeIcon } from 'lucide-react';
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
-import type { ToolUIPart, UIMessage } from 'ai';
+import type { UIMessage, DynamicToolUIPart } from 'ai';
 import { nanoid } from 'nanoid';
 import { useChat } from '@ai-sdk/react';
 
@@ -278,9 +285,43 @@ export function ChatInterface({
               >
                 <MessageContent variant="flat">
                   {message.parts.map((part, i) => {
+                    // Render text parts
                     if (part.type === 'text') {
                       return <Response key={i}>{part.text}</Response>;
                     }
+
+                    // Render tool calls and results
+                    if (part.type === 'dynamic-tool') {
+                      const toolPart = part as DynamicToolUIPart;
+
+                      return (
+                        <Tool key={i} defaultOpen={true}>
+                          <ToolHeader
+                            type={toolPart.type}
+                            state={toolPart.state}
+                            title={toolPart.toolName}
+                          />
+                          <ToolContent>
+                            <ToolInput input={toolPart.input} />
+                            <ToolOutput
+                              output={toolPart.output}
+                              errorText={toolPart.errorText}
+                            />
+                          </ToolContent>
+                        </Tool>
+                      );
+                    }
+
+                    // Render reasoning if present
+                    if (part.type === 'reasoning') {
+                      return (
+                        <Reasoning key={i}>
+                          <ReasoningTrigger />
+                          <ReasoningContent>{(part as any).text}</ReasoningContent>
+                        </Reasoning>
+                      );
+                    }
+
                     return null;
                   })}
                 </MessageContent>
