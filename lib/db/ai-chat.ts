@@ -168,10 +168,35 @@ export async function getUserAIChats(
     .from('ai_chats')
     .select('*')
     .eq('user_id', userId)
-    .order('updated_at', { ascending: false });
+    .order('updated_at', { ascending: false});
 
   if (error) {
     throw new Error(`Failed to get user AI chats: ${error.message}`);
+  }
+
+  return data as AIChat[];
+}
+
+/**
+ * Get all chats for an event
+ *
+ * @param supabase - Supabase client instance
+ * @param eventId - The event ID
+ * @returns Array of chat objects ordered by most recent
+ * @throws {Error} If the database query fails
+ */
+export async function getEventAIChats(
+  supabase: SupabaseClient<Database>,
+  eventId: string
+): Promise<AIChat[]> {
+  const { data, error } = await supabase
+    .from('ai_chats')
+    .select('*')
+    .eq('event_id', eventId)
+    .order('updated_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to get event AI chats: ${error.message}`);
   }
 
   return data as AIChat[];
@@ -279,8 +304,8 @@ function mapPartToUI(dbPart: DBMessagePart): UIMessage['parts'][number] {
         toolName: (dbPart.tool_input as any)?.toolName || 'unknown',
         state: (dbPart.tool_state as any) || 'input-available' as const,
         input: dbPart.tool_input!,
-        errorText: dbPart.tool_errorText,
-      };
+        ...(dbPart.tool_errorText ? { errorText: dbPart.tool_errorText } : {}),
+      } as any;
 
     case 'tool-result':
       return {
@@ -290,8 +315,8 @@ function mapPartToUI(dbPart: DBMessagePart): UIMessage['parts'][number] {
         state: (dbPart.tool_state as any) || 'output-available' as const,
         input: dbPart.tool_input || {},
         output: dbPart.tool_output,
-        errorText: dbPart.tool_errorText,
-      };
+        ...(dbPart.tool_errorText ? { errorText: dbPart.tool_errorText } : {}),
+      } as any;
 
     default:
       // Return custom data parts as-is

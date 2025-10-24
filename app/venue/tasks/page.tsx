@@ -58,10 +58,16 @@ export default function VenueTasksPage() {
         return;
       }
 
-      // Fetch tasks for this venue
+      // Fetch tasks for this venue with event details
       const { data: tasksData, error } = await supabase
         .from('tasks')
-        .select('*')
+        .select(`
+          *,
+          events (
+            event_id,
+            name
+          )
+        `)
         .eq('assigned_to_id', user.id)
         .eq('assigned_to_type', 'venue')
         .order('created_at', { ascending: false });
@@ -75,7 +81,7 @@ export default function VenueTasksPage() {
       const transformedTasks = tasksData?.map((task) => ({
         id: task.task_id,
         title: task.name,
-        eventName: task.event_id ? 'Event' : 'New Inquiry',
+        eventName: (task.events as any)?.name || (task.event_id ? 'Event' : 'New Inquiry'),
         eventId: task.event_id || '',
         priority: task.priority as 'low' | 'normal' | 'high' | 'urgent',
         status: task.status as 'pending' | 'in_progress' | 'completed',

@@ -1,30 +1,33 @@
-import { EventDetailPanelRealtime } from "../../../../components/event/EventDetailPanelRealtime";
 import { createClient } from "../../../../lib/supabase/server";
 import { getEvent } from "../../../../lib/db/events";
-import { notFound } from "next/navigation";
+import { getEventAIChats } from "../../../../lib/db/ai-chat";
+import { notFound, redirect } from "next/navigation";
+import { nanoid } from "nanoid";
 
 interface ClientEventPageProps {
   params: Promise<{ eventId: string }>;
 }
 
-// Split-screen event planning UI tied to the AI assistant conversation.
+// Redirects to the most recent chat or creates a new one
 export default async function ClientEventPage({ params }: ClientEventPageProps) {
   const { eventId } = await params;
   const supabase = await createClient();
 
-  // Verify event exists (quick check before loading the real-time component)
+  // Verify event exists
   const event = await getEvent(supabase, eventId);
-
   if (!event) {
     notFound();
   }
 
-  return (
-    <section className="mx-auto max-w-6xl">
-      <EventDetailPanelRealtime
-        eventId={eventId}
-        mode="client"
-      />
-    </section>
-  );
+  // Get all chats for this event
+  const chats = await getEventAIChats(supabase, eventId);
+
+  // If there are existing chats, redirect to the most recent one
+  if (chats.length > 0) {
+    redirect(`/client/events/${eventId}/chats/${chats[0].id}`);
+  }
+
+  // Otherwise, create a new chat and redirect to it
+  const newChatId = nanoid();
+  redirect(`/client/events/${eventId}/chats/${newChatId}`);
 }

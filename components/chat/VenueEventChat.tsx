@@ -12,15 +12,17 @@ import { ChatInterface } from './ChatInterface';
 interface VenueEventChatProps {
   venueId: string;
   eventId: string;
+  chatId: string;
   className?: string;
 }
 
-export function VenueEventChat({ venueId, eventId, className }: VenueEventChatProps) {
+export function VenueEventChat({ venueId, eventId, chatId, className }: VenueEventChatProps) {
   return (
     <ChatInterface
       agentType="venue_event"
       eventId={eventId}
       venueId={venueId}
+      chatId={chatId}
       className={className}
       title="Event Coordinator"
       subtitle="I'm here to help coordinate all aspects of this event."

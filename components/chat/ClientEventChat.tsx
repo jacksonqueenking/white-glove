@@ -12,14 +12,16 @@ import { ChatInterface } from './ChatInterface';
 interface ClientEventChatProps {
   clientId: string;
   eventId: string;
+  chatId: string;
   className?: string;
 }
 
-export function ClientEventChat({ clientId, eventId, className }: ClientEventChatProps) {
+export function ClientEventChat({ clientId, eventId, chatId, className }: ClientEventChatProps) {
   return (
     <ChatInterface
       agentType="client"
       eventId={eventId}
+      chatId={chatId}
       className={className}
       title="White Glove Assistant"
       subtitle="Chat naturally and I'll coordinate updates with your venue and vendors automatically."

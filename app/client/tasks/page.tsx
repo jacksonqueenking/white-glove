@@ -1,64 +1,124 @@
-import { TaskListView } from "../../../components/tasks/TaskListView";
+'use client';
 
-const TASKS = [
-  {
-    id: "1",
-    title: "Approve catering menu adjustments",
-    eventName: "Smith Wedding",
-    eventId: "event-1",
-    priority: "high" as const,
-    status: "pending" as const,
-    dueDate: "Due Oct 8",
-    description: "Review and approve the updated vegetarian menu options from Bella's Catering.",
-  },
-  {
-    id: "2",
-    title: "Upload photography shot list",
-    eventName: "Smith Wedding",
-    eventId: "event-1",
-    priority: "normal" as const,
-    status: "pending" as const,
-    dueDate: "Due Oct 10",
-    description: "Provide your must-have photo list to Lens & Light Photography for the big day.",
-  },
-  {
-    id: "3",
-    title: "Review floral proposals from Petals & Co.",
-    eventName: "Smith Wedding",
-    eventId: "event-1",
-    priority: "normal" as const,
-    status: "pending" as const,
-    dueDate: "Review by Oct 12",
-    description: "Check out the updated color palette options and select your favorite.",
-  },
-  {
-    id: "4",
-    title: "Confirm final guest count",
-    eventName: "Smith Wedding",
-    eventId: "event-1",
-    priority: "urgent" as const,
-    status: "pending" as const,
-    dueDate: "Due Oct 7",
-    description: "Provide final headcount to the venue for catering and seating arrangements.",
-  },
-  {
-    id: "5",
-    title: "Contract signed",
-    eventName: "Smith Wedding",
-    eventId: "event-1",
-    priority: "normal" as const,
-    status: "completed" as const,
-    dueDate: "Completed Sep 15",
-    description: "Venue rental contract reviewed and signed.",
-  },
-];
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { TaskListView } from '@/components/tasks/TaskListView';
+import { createClient } from '@/lib/supabase/client';
+
+interface Task {
+  id: string;
+  title: string;
+  eventName: string;
+  eventId: string;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  status: 'pending' | 'in_progress' | 'completed';
+  dueDate: string;
+  description?: string;
+}
 
 // Client tasks dashboard for managing event to-dos.
 export default function ClientTasksPage() {
+  const router = useRouter();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadTasks();
+  }, []);
+
+  async function loadTasks() {
+    try {
+      const supabase = createClient();
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+
+      // Fetch tasks for this client with event details
+      const { data: tasksData, error } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          events (
+            event_id,
+            name
+          )
+        `)
+        .eq('assigned_to_id', user.id)
+        .eq('assigned_to_type', 'client')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading tasks:', error);
+        return;
+      }
+
+      // Transform tasks to the format expected by TaskListView
+      const transformedTasks = tasksData?.map((task) => ({
+        id: task.task_id,
+        title: task.name,
+        eventName: (task.events as any)?.name || 'Event',
+        eventId: task.event_id || '',
+        priority: task.priority as 'low' | 'normal' | 'high' | 'urgent',
+        status: task.status as 'pending' | 'in_progress' | 'completed',
+        dueDate: task.due_date
+          ? `Due ${new Date(task.due_date).toLocaleDateString()}`
+          : 'No due date',
+        description: task.description,
+      })) || [];
+
+      setTasks(transformedTasks);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleMarkComplete(taskId: string) {
+    try {
+      const supabase = createClient();
+
+      await supabase
+        .from('tasks')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('task_id', taskId);
+
+      await loadTasks();
+    } catch (error) {
+      console.error('Error marking task complete:', error);
+    }
+  }
+
+  function handleViewEvent(eventId: string) {
+    if (eventId) {
+      router.push(`/client/events/${eventId}`);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#f0bda4] mx-auto"></div>
+          <p className="mt-4 text-[#6f6453]">Loading tasks...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <TaskListView
-      tasks={TASKS}
+      tasks={tasks}
       mode="client"
+      onMarkComplete={handleMarkComplete}
+      onViewEvent={handleViewEvent}
     />
   );
 }

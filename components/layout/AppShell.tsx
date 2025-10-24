@@ -9,6 +9,7 @@ import { useParams } from "next/navigation";
 import { ClientEventChat } from "../chat/ClientEventChat";
 import { VenueEventChat } from "../chat/VenueEventChat";
 import { VenueGeneralChat } from "../chat/VenueGeneralChat";
+import { ChatList } from "../chat/ChatList";
 
 interface AppShellProps {
   children: ReactNode;
@@ -20,8 +21,9 @@ export function AppShell({ children, mode }: AppShellProps) {
   const { user, loading } = useCurrentUser();
   const params = useParams();
   const eventId = params?.eventId as string | undefined;
+  const chatId = params?.chatId as string | undefined;
 
-  // Only show chat panel on event detail pages
+  // Show chat panel on event detail pages (including chat routes)
   const showChatPanel = eventId !== undefined;
 
   // Render appropriate chat component based on mode and context
@@ -42,12 +44,12 @@ export function AppShell({ children, mode }: AppShellProps) {
       );
     }
 
-    if (mode === "client" && user.type === "client" && eventId) {
-      return <ClientEventChat clientId={user.clientId!} eventId={eventId} className="h-full" />;
+    if (mode === "client" && user.type === "client" && eventId && chatId) {
+      return <ClientEventChat clientId={user.clientId!} eventId={eventId} chatId={chatId} className="h-full" />;
     }
 
-    if (mode === "venue" && user.type === "venue" && eventId) {
-      return <VenueEventChat venueId={user.venueId!} eventId={eventId} className="h-full" />;
+    if (mode === "venue" && user.type === "venue" && eventId && chatId) {
+      return <VenueEventChat venueId={user.venueId!} eventId={eventId} chatId={chatId} className="h-full" />;
     }
 
     return null;
@@ -58,9 +60,16 @@ export function AppShell({ children, mode }: AppShellProps) {
       <Sidebar />
       <section className="flex flex-1 min-w-0">
         {showChatPanel && (
-          <aside className="flex w-[420px] flex-col border-r border-[#e7dfd4] bg-[#f8f4ec]">
-            {renderChatComponent()}
-          </aside>
+          <>
+            {/* Chat list sidebar */}
+            <aside className="flex w-[240px] flex-col border-r border-[#e7dfd4] bg-[#f8f4ec]">
+              <ChatList eventId={eventId!} mode={mode as 'client' | 'venue'} />
+            </aside>
+            {/* Chat panel */}
+            <aside className="flex w-[420px] flex-col border-r border-[#e7dfd4] bg-[#f8f4ec]">
+              {renderChatComponent()}
+            </aside>
+          </>
         )}
         <main className="flex-1 overflow-y-auto bg-[#fefbf5] px-12 py-12">{children}</main>
       </section>
